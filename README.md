@@ -18,7 +18,13 @@ Open XML SDK is the gold standard — it's Microsoft's own library for manipulat
 
 ## Quick Start
 
-### Option 1: Native Binary (recommended)
+### Option 1: Homebrew (recommended)
+
+```bash
+brew install henrybloomingdale/tools/xlsx-review
+```
+
+### Option 2: Native Binary
 
 ```bash
 git clone https://github.com/henrybloomingdale/xlsx-review.git
@@ -28,7 +34,7 @@ make install    # Builds + installs to /usr/local/bin
 
 Requires [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0) for building (`brew install dotnet@8`). The resulting binary is self-contained — no .NET runtime needed to run it.
 
-### Option 2: Docker
+### Option 3: Docker
 
 ```bash
 make docker     # Builds Docker image
@@ -106,6 +112,55 @@ Each comment needs:
 
 Comments are added as legacy Notes for maximum compatibility across Excel versions.
 
+## Semantic Diff & Git Integration
+
+Compare two `.xlsx` files semantically — detects cell value and formula changes, structural differences (added/removed sheets, rows, columns), and comment modifications.
+
+### Quick Start
+
+```bash
+# Compare two spreadsheets
+xlsx-review --diff old.xlsx new.xlsx
+
+# JSON output for automation
+xlsx-review --diff old.xlsx new.xlsx --json
+
+# Use as a git textconv driver
+xlsx-review --textconv spreadsheet.xlsx
+```
+
+### Git Integration
+
+Track `.xlsx` changes in git with human-readable diffs:
+
+```bash
+# Print setup instructions
+xlsx-review --git-setup
+```
+
+Add to `.gitattributes`:
+```
+*.xlsx diff=xlsx
+```
+
+Add to `.gitconfig`:
+```ini
+[diff "xlsx"]
+    textconv = xlsx-review --textconv
+```
+
+Now `git diff` shows readable text diffs for Excel files.
+
+### What the Diff Detects
+
+| Category | Details |
+|----------|---------|
+| **Cell values** | Changed, added, or removed cell values across matched sheets |
+| **Formulas** | Formula changes distinguished from value changes |
+| **Sheet structure** | Added or removed worksheets (matched by name) |
+| **Row/column counts** | Dimension changes within sheets |
+| **Comments** | Added, removed, or modified cell comments |
+
 ## CLI Flags
 
 | Flag | Description |
@@ -115,6 +170,9 @@ Comments are added as legacy Notes for maximum compatibility across Excel versio
 | `--json` | Output results as JSON (for scripting/pipelines) |
 | `--dry-run` | Validate the manifest without modifying the spreadsheet |
 | `--read` | Read spreadsheet contents (no manifest needed) |
+| `--diff` | Compare two spreadsheets semantically |
+| `--textconv` | Git textconv driver (normalized text output) |
+| `--git-setup` | Print `.gitattributes` and `.gitconfig` setup instructions |
 | `-v`, `--version` | Show version |
 | `-h`, `--help` | Show help |
 
