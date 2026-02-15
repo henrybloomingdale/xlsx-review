@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -16,8 +17,12 @@ class Program
         bool jsonOutput = false;
         bool dryRun = false;
         bool readMode = false;
+        bool diffMode = false;
+        bool textConvMode = false;
+        bool gitSetup = false;
         bool showHelp = false;
         bool showVersion = false;
+        var positionalArgs = new List<string>();
 
         for (int i = 0; i < args.Length; i++)
         {
@@ -43,19 +48,29 @@ class Program
                 case "--read":
                     readMode = true;
                     break;
+                case "--diff":
+                    diffMode = true;
+                    break;
+                case "--textconv":
+                    textConvMode = true;
+                    break;
+                case "--git-setup":
+                    gitSetup = true;
+                    break;
                 case "-h":
                 case "--help":
                     showHelp = true;
                     break;
                 default:
                     if (!args[i].StartsWith("-"))
-                    {
-                        if (inputPath == null) inputPath = args[i];
-                        else if (manifestPath == null) manifestPath = args[i];
-                    }
+                        positionalArgs.Add(args[i]);
                     break;
             }
         }
+
+        // Map positional args
+        if (positionalArgs.Count >= 1) inputPath = positionalArgs[0];
+        if (positionalArgs.Count >= 2) manifestPath = positionalArgs[1];
 
         if (showVersion)
         {
@@ -63,10 +78,82 @@ class Program
             return 0;
         }
 
-        if (showHelp || inputPath == null)
+        // ── Git setup ──────────────────────────────────────────────
+        if (gitSetup)
+        {
+            PrintGitSetup();
+            return 0;
+        }
+
+        if (showHelp || (inputPath == null && !gitSetup))
         {
             PrintUsage();
             return showHelp ? 0 : 1;
+        }
+
+        // ── Diff mode ─────────────────────────────────────────────
+        if (diffMode)
+        {
+            if (manifestPath == null)
+            {
+                Error("--diff requires two files: xlsx-review --diff old.xlsx new.xlsx");
+                return 1;
+            }
+
+            if (!File.Exists(inputPath!))
+            {
+                Error($"Old file not found: {inputPath}");
+                return 1;
+            }
+            if (!File.Exists(manifestPath))
+            {
+                Error($"New file not found: {manifestPath}");
+                return 1;
+            }
+
+            try
+            {
+                var oldDoc = SpreadsheetExtractor.Extract(inputPath!);
+                var newDoc = SpreadsheetExtractor.Extract(manifestPath);
+                var diffResult = SpreadsheetDiffer.Diff(oldDoc, newDoc);
+
+                if (jsonOutput)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(diffResult, XlsxReviewJsonContext.Default.XlsxDiffResult));
+                }
+                else
+                {
+                    SpreadsheetDiffer.PrintHumanReadable(diffResult);
+                }
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Error($"Diff failed: {ex.Message}");
+                return 1;
+            }
+        }
+
+        // ── TextConv mode ─────────────────────────────────────────
+        if (textConvMode)
+        {
+            if (!File.Exists(inputPath!))
+            {
+                Error($"File not found: {inputPath}");
+                return 1;
+            }
+
+            try
+            {
+                var extraction = SpreadsheetExtractor.Extract(inputPath!);
+                Console.Write(XlsxTextConv.Convert(extraction));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                Error($"TextConv failed: {ex.Message}");
+                return 1;
+            }
         }
 
         // Validate input file
@@ -113,7 +200,7 @@ class Program
             return 0;
         }
 
-        // ── Edit Mode ──
+        // ── Edit Mode (original behavior) ─────────────────────────
 
         // Read manifest from file or stdin
         string manifestJson;
@@ -189,19 +276,28 @@ class Program
 
     static void PrintUsage()
     {
-        Console.Error.WriteLine(@"xlsx-review — Programmatic Excel (.xlsx) editing via JSON manifest
+        Console.Error.WriteLine(@"xlsx-review — Read, write, and diff Excel spreadsheets with full cell awareness
 
 Usage:
-  xlsx-review <input.xlsx> <edits.json> [options]
-  xlsx-review <input.xlsx> --read [--json]
+  xlsx-review <input.xlsx> --read [--json]               Read spreadsheet contents
+  xlsx-review <input.xlsx> <edits.json> [options]        Write cell changes/comments
+  xlsx-review --diff <old.xlsx> <new.xlsx> [--json]      Semantic spreadsheet diff
+  xlsx-review --textconv <file.xlsx>                     Git textconv (normalized text)
+  xlsx-review --git-setup                                Print git configuration
   cat edits.json | xlsx-review <input.xlsx> [options]
 
-Options:
+Diff & Git Integration:
+  --diff                 Compare two spreadsheets semantically (cells, formulas,
+                         sheets, structure)
+  --textconv             Output normalized tabular text for use as git diff textconv
+  --git-setup            Print .gitattributes and .gitconfig setup instructions
+
+Read/Write Options:
+  --read                 Read mode: extract cell values from all sheets
   -o, --output <path>    Output file path (default: <input>_edited.xlsx)
   --author <name>        Author name for comments (overrides manifest author)
   --json                 Output results as JSON
   --dry-run              Validate manifest without modifying
-  --read                 Read spreadsheet contents (no manifest needed)
   -v, --version          Show version
   -h, --help             Show this help
 
@@ -221,6 +317,30 @@ JSON Manifest Format:
       { ""sheet"": ""Sheet1"", ""cell"": ""A1"", ""text"": ""Review note"" }
     ]
   }");
+    }
+
+    static void PrintGitSetup()
+    {
+        Console.WriteLine(@"Git Integration for Excel Spreadsheets
+══════════════════════════════════════
+
+Add to your repository's .gitattributes:
+
+  *.xlsx diff=xlsx
+
+Add to your .gitconfig (global or per-repo):
+
+  [diff ""xlsx""]
+      textconv = xlsx-review --textconv
+
+Now `git diff` will show meaningful content changes for .xlsx files,
+including cell values, formulas, sheet structure, and metadata.
+
+For two-file comparison outside git:
+
+  xlsx-review --diff old.xlsx new.xlsx
+  xlsx-review --diff old.xlsx new.xlsx --json
+");
     }
 
     static void PrintHumanResult(ProcessingResult result, bool dryRun)

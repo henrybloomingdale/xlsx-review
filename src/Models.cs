@@ -10,6 +10,7 @@ namespace XlsxReview;
 [JsonSerializable(typeof(EditManifest))]
 [JsonSerializable(typeof(ProcessingResult))]
 [JsonSerializable(typeof(ReadResult))]
+[JsonSerializable(typeof(XlsxDiffResult))]
 [JsonSourceGenerationOptions(
     PropertyNameCaseInsensitive = true,
     WriteIndented = true
