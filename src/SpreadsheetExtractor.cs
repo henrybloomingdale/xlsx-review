@@ -70,7 +70,7 @@ public static class SpreadsheetExtractor
                 Name = sheet.Name?.Value ?? "Unnamed"
             };
 
-            var worksheetPart = workbookPart.GetPartById(sheet.Id?.Value ?? "") as WorksheetPart;
+            var worksheetPart = TryGetWorksheetPart(workbookPart, sheet);
             if (worksheetPart == null) continue;
 
             var rows = worksheetPart.Worksheet.Descendants<Row>();
@@ -132,8 +132,15 @@ public static class SpreadsheetExtractor
             {
                 if (int.TryParse(rawValue, out int idx))
                 {
-                    var ssItem = sharedStrings.ElementAt(idx);
-                    result.Value = ssItem.InnerText;
+                    if (idx >= 0 && idx < sharedStrings.ChildElements.Count)
+                    {
+                        var ssItem = sharedStrings.ChildElements[idx] as SharedStringItem;
+                        result.Value = ssItem?.InnerText ?? rawValue;
+                    }
+                    else
+                    {
+                        result.Value = rawValue;
+                    }
                     result.CellType ??= "string";
                 }
             }
@@ -187,6 +194,22 @@ public static class SpreadsheetExtractor
         }
 
         return result;
+    }
+
+    private static WorksheetPart? TryGetWorksheetPart(WorkbookPart workbookPart, Sheet sheet)
+    {
+        string? relId = sheet.Id?.Value;
+        if (string.IsNullOrWhiteSpace(relId))
+            return null;
+
+        try
+        {
+            return workbookPart.GetPartById(relId) as WorksheetPart;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static Dictionary<uint, string> BuildNumberFormatMap(WorkbookPart workbookPart)

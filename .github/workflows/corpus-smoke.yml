@@ -1,0 +1,37 @@
+name: Corpus Smoke
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download corpus
+        run: make corpus-download
+
+      - name: Run corpus smoke suite
+        run: make corpus-smoke
+
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: corpus-smoke-report
+          path: |
+            testdata/public-xlsx-corpus/reports/read_smoke_status.tsv
+            testdata/public-xlsx-corpus/reports/read_smoke_failures.tsv
+            testdata/public-xlsx-corpus/reports/read_smoke_summary.tsv
+            testdata/public-xlsx-corpus/reports/read_smoke_reasons.tsv

@@ -1,0 +1,17 @@
+# Paths are relative to testdata/public-xlsx-corpus/files
+apache-poi/simple-monthly-budget.xlsx
+apache-poi/WithTable.xlsx
+apache-poi/styles.xlsx
+apache-poi/shared_formulas.xlsx
+apache-poi/unicodeSheetName.xlsx
+apache-poi/right-to-left.xlsx
+apache-poi/link-external-workbook-a.xlsx
+apache-poi/xlookup.xlsx
+apache-poi/123233_charts.xlsx
+closedxml/CommentAndButton.xlsx
+closedxml/DialogSheet.xlsx
+closedxml/LibreOfficeFileWithDates.xlsx
+closedxml/WorksheetWithExclamationMark.xlsx
+openxml-sdk/assets/TestFiles/basicspreadsheet.xlsx
+openxml-sdk/assets/TestFiles/Comments.xlsx
+openxml-sdk/assets/TestFiles/Complex01.xlsx

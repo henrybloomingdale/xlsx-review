@@ -6,13 +6,18 @@
 #   make install      # Build + install to /usr/local/bin
 #   make all          # Build for macOS ARM64, macOS x64, Linux x64, Linux ARM64
 #   make docker       # Build Docker image
+#   make smoke        # Run bundled example smoke tests
 #   make test         # Run test against sample spreadsheet
+#   make corpus-download  # Download public XLSX regression corpus
+#   make corpus-smoke     # Run a curated read smoke suite from the public corpus
+#   make corpus-check     # Run read checks across the public corpus
 #   make clean        # Remove build artifacts
 
 BINARY_NAME  := xlsx-review
-VERSION      := 1.0.0
+VERSION      := 1.1.0
 BUILD_DIR    := build
 INSTALL_DIR  := /usr/local/bin
+LIMIT        ?= 50
 
 # Detect current platform
 UNAME_S := $(shell uname -s)
@@ -38,7 +43,7 @@ PUBLISH_FLAGS := -c Release \
   -p:TrimMode=link \
   -p:SuppressTrimAnalysisWarnings=true
 
-.PHONY: build install all docker test clean help
+.PHONY: build install all docker smoke test test-dry corpus-download corpus-smoke corpus-check corpus-check-fast clean help
 
 ## build: Build single-file binary for current platform
 build:
@@ -80,6 +85,17 @@ all:
 docker:
 	docker build -t $(BINARY_NAME) .
 
+## smoke: Run bundled read/diff/edit smoke tests
+smoke: build
+	@echo "Running bundled smoke tests..."
+	@mkdir -p $(BUILD_DIR)
+	@$(BUILD_DIR)/$(BINARY_NAME) examples/test_old.xlsx --read --json > $(BUILD_DIR)/smoke-read.json
+	@$(BUILD_DIR)/$(BINARY_NAME) --diff examples/test_old.xlsx examples/test_new.xlsx --json > $(BUILD_DIR)/smoke-diff.json
+	@$(BUILD_DIR)/$(BINARY_NAME) examples/test_old.xlsx examples/sample-edits.json -o $(BUILD_DIR)/smoke-output.xlsx --json > $(BUILD_DIR)/smoke-edit.json
+	@grep -q '"success": true' $(BUILD_DIR)/smoke-edit.json
+	@echo "✅ Smoke tests passed"
+	@ls -lh $(BUILD_DIR)/smoke-output.xlsx
+
 ## test: Run test against a sample spreadsheet
 test: build
 	@echo "Running test..."
@@ -103,6 +119,27 @@ test-dry: build
 		echo "Usage: make test-dry TEST_DOC=/path/to/spreadsheet.xlsx"; \
 	fi
 
+## corpus-download: Download the public XLSX regression corpus
+corpus-download:
+	@./scripts/download_public_corpus.sh
+
+## corpus-smoke: Run a curated read-mode smoke suite from the public corpus
+corpus-smoke: build
+	@./scripts/run_public_corpus_check.sh \
+		--binary ./$(BUILD_DIR)/$(BINARY_NAME) \
+		--mode read \
+		--suite testdata/public-xlsx-corpus/suites/read-smoke.txt \
+		--report-prefix read_smoke \
+		--strict
+
+## corpus-check: Run read checks across the full public XLSX corpus
+corpus-check: build
+	@./scripts/run_public_corpus_check.sh --binary ./$(BUILD_DIR)/$(BINARY_NAME)
+
+## corpus-check-fast: Run a limited corpus check (override LIMIT=...)
+corpus-check-fast: build
+	@./scripts/run_public_corpus_check.sh --binary ./$(BUILD_DIR)/$(BINARY_NAME) --limit $(LIMIT)
+
 ## clean: Remove build artifacts
 clean:
 	@rm -rf $(BUILD_DIR) bin obj
@@ -119,5 +156,10 @@ help:
 	@echo "  make                              # Build for $(CURRENT_RID)"
 	@echo "  make install                      # Build + install to $(INSTALL_DIR)"
 	@echo "  make all                          # Cross-compile all platforms"
+	@echo "  make smoke                        # Run bundled example smoke tests"
+	@echo "  make corpus-download              # Download public XLSX corpus"
+	@echo "  make corpus-smoke                 # Run the curated corpus smoke suite"
+	@echo "  make corpus-check                 # Validate the full public XLSX corpus"
+	@echo "  make corpus-check-fast LIMIT=25   # Quick corpus subset check"
 	@echo "  make test TEST_DOC=data.xlsx      # Run test"
 	@echo "  make clean                        # Remove artifacts"

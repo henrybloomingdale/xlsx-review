@@ -9,3 +9,4 @@ obj/
 *.xlsx
 !examples/*.xlsx
 build/
+testdata/public-xlsx-corpus/reports/

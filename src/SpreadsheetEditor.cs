@@ -39,7 +39,7 @@ public class SpreadsheetEditor
                 Name = sheet.Name?.Value ?? "Unnamed"
             };
 
-            var worksheetPart = (WorksheetPart?)workbookPart.GetPartById(sheet.Id?.Value ?? "");
+            var worksheetPart = TryGetWorksheetPart(workbookPart, sheet);
             if (worksheetPart == null) continue;
 
             var rows = worksheetPart.Worksheet.Descendants<Row>();
@@ -90,8 +90,13 @@ public class SpreadsheetEditor
         {
             if (int.TryParse(value, out int idx))
             {
-                var ssItem = sharedStrings.ElementAt(idx);
-                return ssItem.InnerText;
+                if (idx >= 0 && idx < sharedStrings.ChildElements.Count)
+                {
+                    var ssItem = sharedStrings.ChildElements[idx] as SharedStringItem;
+                    return ssItem?.InnerText ?? value;
+                }
+
+                return value;
             }
         }
         else if (cell.DataType?.Value == CellValues.Boolean)
@@ -767,7 +772,34 @@ public class SpreadsheetEditor
             .FirstOrDefault(s => s.Name?.Value == sheetName)
             ?? throw new Exception($"Sheet '{sheetName}' not found");
 
-        return (WorksheetPart)workbookPart.GetPartById(sheet.Id?.Value ?? "");
+        var part = workbookPart.GetPartById(sheet.Id?.Value ?? "");
+        if (part is WorksheetPart worksheetPart)
+            return worksheetPart;
+
+        string partKind = part switch
+        {
+            ChartsheetPart => "chartsheet",
+            DialogsheetPart => "dialogsheet",
+            _ => part.GetType().Name
+        };
+
+        throw new Exception($"Sheet '{sheetName}' is a {partKind} and cannot be edited");
+    }
+
+    private static WorksheetPart? TryGetWorksheetPart(WorkbookPart workbookPart, Sheet sheet)
+    {
+        string? relId = sheet.Id?.Value;
+        if (string.IsNullOrWhiteSpace(relId))
+            return null;
+
+        try
+        {
+            return workbookPart.GetPartById(relId) as WorksheetPart;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static Row EnsureRow(DocumentFormat.OpenXml.Spreadsheet.SheetData sheetData, uint rowIndex)
