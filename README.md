@@ -186,13 +186,15 @@ Now `git diff` shows readable text diffs for Excel files.
 ## Build Targets
 
 ```
-make              # Build native binary for current platform (~12MB, self-contained)
+make              # Build native binary for current platform (self-contained)
 make install      # Build + install to /usr/local/bin
 make all          # Cross-compile for macOS ARM64, macOS x64, Linux x64, Linux ARM64
 make docker       # Build Docker image
 make smoke        # Run bundled read/diff/edit smoke tests
 make test         # Run test (requires TEST_DOC=path/to/spreadsheet.xlsx)
 make corpus-download  # Download the public XLSX regression corpus
+make corpus-smoke     # Run published-binary corpus smoke checks
+make corpus-feature-smoke  # Assert workbook/sheet metadata on representative files
 make corpus-check     # Run read checks across the full corpus
 make corpus-check-fast LIMIT=25  # Quick subset corpus check
 make clean        # Remove build artifacts
@@ -246,7 +248,15 @@ xlsx-review input.xlsx --read --json
     "defined_name_count": 0,
     "external_link_count": 0,
     "has_macros": false,
-    "protected": false
+    "protected": false,
+    "workbook_protection": {
+      "enabled": false,
+      "lock_structure": false,
+      "lock_windows": false,
+      "lock_revision": false
+    },
+    "defined_names": [],
+    "external_links": []
   },
   "warnings": [],
   "sheets": [
@@ -257,14 +267,22 @@ xlsx-review input.xlsx --read --json
       "row_count": 2,
       "cell_count": 4,
       "formula_count": 0,
+      "shared_formula_count": 0,
+      "array_formula_count": 0,
+      "data_table_formula_count": 0,
       "comment_count": 0,
+      "threaded_comment_count": 0,
       "table_count": 0,
       "data_validation_count": 0,
       "conditional_format_count": 0,
       "pivot_table_count": 0,
+      "protected": false,
+      "tables": [],
+      "data_validations": [],
+      "conditional_formats": [],
       "rows": [
-        { "row": 1, "cells": [{ "cell": "A1", "value": "Name", "formula": null, "type": "string" }, { "cell": "B1", "value": "Age", "formula": null, "type": "string" }] },
-        { "row": 2, "cells": [{ "cell": "A2", "value": "Alice", "formula": null, "type": "string" }, { "cell": "B2", "value": "30", "formula": null, "type": "number" }] }
+        { "row": 1, "cells": [{ "cell": "A1", "value": "Name", "formula": null, "formula_kind": null, "type": "string" }, { "cell": "B1", "value": "Age", "formula": null, "formula_kind": null, "type": "string" }] },
+        { "row": 2, "cells": [{ "cell": "A2", "value": "Alice", "formula": null, "formula_kind": null, "type": "string" }, { "cell": "B2", "value": "30", "formula": null, "formula_kind": null, "type": "number" }] }
       ]
     }
   ]
@@ -307,6 +325,7 @@ Download a large public `.xlsx` corpus for regression work:
 ```bash
 make corpus-download
 make corpus-smoke
+make corpus-feature-smoke
 make corpus-check
 ```
 
@@ -314,6 +333,10 @@ This stages files under `testdata/public-xlsx-corpus/files/` and writes
 `testdata/public-xlsx-corpus/manifest.tsv` with source repo, commit, path,
 size, and SHA-256 for each spreadsheet. Validation reports are written under
 `testdata/public-xlsx-corpus/reports/`.
+
+`make corpus-smoke` uses the published single-file binary. `make corpus-feature-smoke`
+and `make corpus-check` use the local Release runner for longer or more
+assertion-heavy sweeps.
 
 ## License
 

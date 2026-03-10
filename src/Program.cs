@@ -209,9 +209,11 @@ class Program
                         $"\n📊 Sheet: {sheet.Name} " +
                         $"[{sheet.Kind}, {sheet.Visibility}] " +
                         $"rows={sheet.RowCount}, cells={sheet.CellCount}, " +
-                        $"formulas={sheet.FormulaCount}, comments={sheet.CommentCount}, " +
+                        $"formulas={sheet.FormulaCount} (shared={sheet.SharedFormulaCount}, array={sheet.ArrayFormulaCount}, dataTable={sheet.DataTableFormulaCount}), " +
+                        $"comments={sheet.CommentCount}, threadedComments={sheet.ThreadedCommentCount}, " +
                         $"tables={sheet.TableCount}, validations={sheet.DataValidationCount}, " +
-                        $"conditionalFormats={sheet.ConditionalFormatCount}, pivots={sheet.PivotTableCount}");
+                        $"conditionalFormats={sheet.ConditionalFormatCount}, pivots={sheet.PivotTableCount}, " +
+                        $"protected={(sheet.Protected ? "yes" : "no")}");
                     Console.WriteLine(new string('─', 50));
                     foreach (var row in sheet.Rows)
                     {

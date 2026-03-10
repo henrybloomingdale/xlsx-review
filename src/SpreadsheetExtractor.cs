@@ -48,6 +48,8 @@ public static class SpreadsheetExtractor
         if (!File.Exists(path))
             throw new FileNotFoundException($"File not found: {path}");
 
+        SpreadsheetPackagePreflight.Validate(path);
+
         var result = new SpreadsheetExtraction
         {
             FileName = Path.GetFileName(path)

@@ -1,0 +1,22 @@
+# path	field	expected
+openxml-sdk/assets/TestDataStorage/v2FxTestFiles/spreadsheet/ChartSheet.xlsx	workbook.chartsheet_count	=1
+openxml-sdk/assets/TestDataStorage/v2FxTestFiles/spreadsheet/ChartSheet.xlsx	sheet:Chart1.kind	=chartsheet
+openxml-sdk/assets/TestDataStorage/v2FxTestFiles/spreadsheet/Dialogsheet.xlsx	workbook.dialogsheet_count	=1
+openxml-sdk/assets/TestDataStorage/v2FxTestFiles/spreadsheet/Dialogsheet.xlsx	sheet:Dialog1.kind	=dialogsheet
+closedxml/SheetsWithoutRelId.xlsx	warning_count	=2
+closedxml/SheetsWithoutRelId.xlsx	sheet:Sheet without relId.kind	=unreadable
+closedxml/LO/xlsx/shared-formula/basic.xlsx	sheet:Sheet1.shared_formula_count	>=1
+closedxml/LO/xlsx/named-ranges-global.xlsx	workbook.defined_name_count	>=1
+apache-poi/TwoSheetsOneHidden.xlsx	workbook.hidden_sheet_count	=1
+apache-poi/TwoSheetsOneHidden.xlsx	sheet:Sheet1.visibility	=hidden
+apache-poi/DataValidationEvaluations.xlsx	sheet:Sheet1.data_validation_count	>=1
+apache-poi/DataValidationEvaluations.xlsx	sheet:Sheet1.table_count	>=1
+apache-poi/DataValidationEvaluations.xlsx	sheet:Sheet1.comment_count	>=1
+apache-poi/conditional_formatting_with_formula_on_second_sheet.xlsx	sheet:Sales Plan.conditional_format_count	>=1
+apache-poi/workbookProtection_workbook_structure_protected.xlsx	workbook.protected	=true
+apache-poi/workbookProtection_workbook_structure_protected.xlsx	workbook.workbook_protection.lock_structure	=true
+apache-poi/sheetProtection_allLocked.xlsx	sheet:Foglio1.protected	=true
+openxml-sdk/assets/TestDataStorage/v2FxTestFiles/spreadsheet/ExternalLink.xlsx	workbook.external_link_count	=1
+openxml-sdk/assets/TestDataStorage/v2FxTestFiles/spreadsheet/ExternalLink.xlsx	workbook.external_links.0.target	contains:Book2.xlsx
+openxml-sdk/assets/TestDataStorage/v2FxTestFiles/spreadsheet/Pivot.xlsx	sheet:Sheet4.pivot_table_count	=1
+openxml-sdk/assets/TestFiles/Comments.xlsx	sheet:Sheet1.comment_count	=1

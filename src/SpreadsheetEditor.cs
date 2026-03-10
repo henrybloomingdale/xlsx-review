@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using DocumentFormat.OpenXml;
+using ThreadedComments = DocumentFormat.OpenXml.Office2019.Excel.ThreadedComments;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 
@@ -23,6 +24,8 @@ public class SpreadsheetEditor
 
     public ReadResult ReadSpreadsheet(string inputPath)
     {
+        SpreadsheetPackagePreflight.Validate(inputPath);
+
         var result = new ReadResult();
 
         using var doc = SpreadsheetDocument.Open(inputPath, false);
@@ -63,15 +66,23 @@ public class SpreadsheetEditor
                     Visibility = sheetData.Visibility,
                     RowCount = sheetData.RowCount,
                     CellCount = sheetData.CellCount,
+                    Tables = sheetData.Tables,
+                    DataValidations = sheetData.DataValidations,
+                    ConditionalFormats = sheetData.ConditionalFormats,
                     Rows = sheetData.Rows
                 });
                 continue;
             }
 
             sheetData.CommentCount = GetCommentCount(sheetPart.WorksheetPart);
-            sheetData.TableCount = sheetPart.WorksheetPart.TableDefinitionParts.Count();
-            sheetData.DataValidationCount = GetDataValidationCount(sheetPart.WorksheetPart);
-            sheetData.ConditionalFormatCount = sheetPart.WorksheetPart.Worksheet.Elements<ConditionalFormatting>().Count();
+            sheetData.ThreadedCommentCount = GetThreadedCommentCount(sheetPart.WorksheetPart);
+            sheetData.Protected = IsSheetProtected(sheetPart.WorksheetPart);
+            sheetData.Tables = GetTableInfos(sheetPart.WorksheetPart);
+            sheetData.TableCount = sheetData.Tables.Count;
+            sheetData.DataValidations = GetDataValidationInfos(sheetPart.WorksheetPart);
+            sheetData.DataValidationCount = sheetData.DataValidations.Count;
+            sheetData.ConditionalFormats = GetConditionalFormatInfos(sheetPart.WorksheetPart);
+            sheetData.ConditionalFormatCount = sheetData.ConditionalFormats.Sum(x => x.RuleCount);
             sheetData.PivotTableCount = sheetPart.WorksheetPart.PivotTableParts.Count();
 
             var rows = sheetPart.WorksheetPart.Worksheet.Descendants<Row>();
@@ -86,16 +97,32 @@ public class SpreadsheetEditor
 
                     string? cellValue = GetCellValue(cell, sharedStrings);
                     string? formula = cell.CellFormula?.Text;
+                    string? formulaKind = GetFormulaKind(cell);
                     string cellType = GetCellType(cell);
 
                     if (formula != null)
+                    {
                         sheetData.FormulaCount++;
+                        switch (formulaKind)
+                        {
+                            case "shared":
+                                sheetData.SharedFormulaCount++;
+                                break;
+                            case "array":
+                                sheetData.ArrayFormulaCount++;
+                                break;
+                            case "dataTable":
+                                sheetData.DataTableFormulaCount++;
+                                break;
+                        }
+                    }
 
                     rowData.Cells.Add(new CellData
                     {
                         Cell = cellRef,
                         Value = cellValue,
                         Formula = formula,
+                        FormulaKind = formulaKind,
                         Type = cellType
                     });
                     sheetData.CellCount++;
@@ -116,11 +143,19 @@ public class SpreadsheetEditor
                 RowCount = sheetData.RowCount,
                 CellCount = sheetData.CellCount,
                 FormulaCount = sheetData.FormulaCount,
+                SharedFormulaCount = sheetData.SharedFormulaCount,
+                ArrayFormulaCount = sheetData.ArrayFormulaCount,
+                DataTableFormulaCount = sheetData.DataTableFormulaCount,
                 CommentCount = sheetData.CommentCount,
+                ThreadedCommentCount = sheetData.ThreadedCommentCount,
                 TableCount = sheetData.TableCount,
                 DataValidationCount = sheetData.DataValidationCount,
                 ConditionalFormatCount = sheetData.ConditionalFormatCount,
                 PivotTableCount = sheetData.PivotTableCount,
+                Protected = sheetData.Protected,
+                Tables = sheetData.Tables,
+                DataValidations = sheetData.DataValidations,
+                ConditionalFormats = sheetData.ConditionalFormats,
                 Rows = sheetData.Rows
             });
         }
@@ -163,16 +198,20 @@ public class SpreadsheetEditor
     private static WorkbookInfo BuildWorkbookInfo(SpreadsheetDocument document, WorkbookPart workbookPart, List<Sheet> sheets)
     {
         var workbook = workbookPart.Workbook;
+        var definedNames = BuildDefinedNames(workbook, sheets);
+        var externalLinks = BuildExternalLinks(workbookPart, workbook);
+        var workbookProtection = BuildWorkbookProtection(workbook.WorkbookProtection);
         var info = new WorkbookInfo
         {
             DocumentType = GetDocumentTypeName(document.DocumentType),
             SheetCount = sheets.Count,
-            DefinedNameCount = workbook.DefinedNames?.Elements<DefinedName>().Count() ?? 0,
-            ExternalLinkCount = workbook.Elements<ExternalReferences>()
-                .SelectMany(x => x.Elements<ExternalReference>())
-                .Count(),
+            DefinedNameCount = definedNames.Count,
+            DefinedNames = definedNames,
+            ExternalLinkCount = externalLinks.Count,
+            ExternalLinks = externalLinks,
             HasMacros = workbookPart.GetPartsOfType<VbaProjectPart>().Any(),
-            Protected = workbook.WorkbookProtection?.HasAttributes == true
+            Protected = workbookProtection.Enabled,
+            WorkbookProtection = workbookProtection
         };
 
         foreach (var sheet in sheets)
@@ -219,6 +258,92 @@ public class SpreadsheetEditor
         return "empty";
     }
 
+    private static string? GetFormulaKind(Cell cell)
+    {
+        if (cell.CellFormula == null)
+            return null;
+
+        var formulaType = cell.CellFormula.FormulaType?.Value;
+        if (formulaType == CellFormulaValues.Shared) return "shared";
+        if (formulaType == CellFormulaValues.Array) return "array";
+        if (formulaType == CellFormulaValues.DataTable) return "dataTable";
+        return "normal";
+    }
+
+    private static WorkbookProtectionInfo BuildWorkbookProtection(WorkbookProtection? protection)
+    {
+        if (protection == null)
+            return new WorkbookProtectionInfo();
+
+        bool lockStructure = protection.LockStructure?.Value ?? false;
+        bool lockWindows = protection.LockWindows?.Value ?? false;
+        bool lockRevision = protection.LockRevision?.Value ?? false;
+
+        return new WorkbookProtectionInfo
+        {
+            Enabled = lockStructure || lockWindows || lockRevision || protection.HasAttributes,
+            LockStructure = lockStructure,
+            LockWindows = lockWindows,
+            LockRevision = lockRevision
+        };
+    }
+
+    private static List<DefinedNameInfo> BuildDefinedNames(Workbook workbook, List<Sheet> sheets)
+    {
+        return workbook.DefinedNames?.Elements<DefinedName>()
+            .Select(name =>
+            {
+                string? scopeSheet = null;
+                uint? localSheetId = name.LocalSheetId?.Value;
+                if (localSheetId.HasValue && localSheetId.Value < sheets.Count)
+                    scopeSheet = sheets[(int)localSheetId.Value].Name?.Value;
+
+                return new DefinedNameInfo
+                {
+                    Name = name.Name?.Value ?? "",
+                    ScopeSheet = scopeSheet,
+                    RefersTo = name.Text ?? name.InnerText,
+                    Hidden = name.Hidden?.Value ?? false,
+                    BuiltIn = (name.Name?.Value ?? "").StartsWith("_xlnm.", StringComparison.Ordinal),
+                    Comment = name.Comment?.Value
+                };
+            })
+            .ToList() ?? new List<DefinedNameInfo>();
+    }
+
+    private static List<ExternalLinkInfo> BuildExternalLinks(WorkbookPart workbookPart, Workbook workbook)
+    {
+        var links = new List<ExternalLinkInfo>();
+
+        foreach (var reference in workbook.Elements<ExternalReferences>()
+                     .SelectMany(x => x.Elements<ExternalReference>()))
+        {
+            string relId = reference.Id?.Value ?? "";
+            string? target = null;
+            string? relationshipType = null;
+
+            if (!string.IsNullOrWhiteSpace(relId))
+            {
+                var linkPart = workbookPart.Parts
+                    .FirstOrDefault(x => x.RelationshipId == relId)
+                    .OpenXmlPart as ExternalWorkbookPart;
+                var externalRelationship = linkPart?.ExternalRelationships.FirstOrDefault();
+                target = externalRelationship?.Uri?.ToString();
+                relationshipType = externalRelationship?.RelationshipType;
+            }
+
+            links.Add(new ExternalLinkInfo
+            {
+                RelationshipId = relId,
+                Target = target,
+                RelationshipType = relationshipType,
+                Broken = string.IsNullOrWhiteSpace(relId) || string.IsNullOrWhiteSpace(target)
+            });
+        }
+
+        return links;
+    }
+
     private static int GetCommentCount(WorksheetPart worksheetPart)
     {
         return worksheetPart.WorksheetCommentsPart?.Comments?
@@ -227,24 +352,81 @@ public class SpreadsheetEditor
             .Count() ?? 0;
     }
 
-    private static int GetDataValidationCount(WorksheetPart worksheetPart)
+    private static int GetThreadedCommentCount(WorksheetPart worksheetPart)
+    {
+        return worksheetPart.WorksheetThreadedCommentsParts
+            .SelectMany(part => part.ThreadedComments?.Elements<ThreadedComments.ThreadedComment>()
+                ?? Enumerable.Empty<ThreadedComments.ThreadedComment>())
+            .Count();
+    }
+
+    private static bool IsSheetProtected(WorksheetPart worksheetPart)
+    {
+        return worksheetPart.Worksheet.GetFirstChild<SheetProtection>() != null;
+    }
+
+    private static List<TableInfo> GetTableInfos(WorksheetPart worksheetPart)
+    {
+        return worksheetPart.TableDefinitionParts
+            .Select(part =>
+            {
+                var table = part.Table;
+                return new TableInfo
+                {
+                    Name = table?.Name?.Value,
+                    DisplayName = table?.DisplayName?.Value,
+                    Reference = table?.Reference?.Value,
+                    TotalsRowShown = table?.TotalsRowShown?.Value ?? false,
+                    HeaderRowCount = table?.HeaderRowCount?.Value,
+                    StyleName = table?.TableStyleInfo?.Name?.Value
+                };
+            })
+            .ToList();
+    }
+
+    private static List<DataValidationInfo> GetDataValidationInfos(WorksheetPart worksheetPart)
     {
         return worksheetPart.Worksheet.Elements<DataValidations>()
             .SelectMany(x => x.Elements<DataValidation>())
-            .Count();
+            .Select(validation => new DataValidationInfo
+            {
+                Range = validation.SequenceOfReferences?.InnerText,
+                Type = validation.Type?.Value.ToString(),
+                Operator = validation.Operator?.Value.ToString(),
+                AllowBlank = validation.AllowBlank?.Value ?? false,
+                ShowInputMessage = validation.ShowInputMessage?.Value ?? false,
+                ShowErrorMessage = validation.ShowErrorMessage?.Value ?? false,
+                Formula1 = validation.Formula1?.InnerText,
+                Formula2 = validation.Formula2?.InnerText
+            })
+            .ToList();
+    }
+
+    private static List<ConditionalFormatInfo> GetConditionalFormatInfos(WorksheetPart worksheetPart)
+    {
+        return worksheetPart.Worksheet.Elements<ConditionalFormatting>()
+            .Select(format => new ConditionalFormatInfo
+            {
+                Range = format.SequenceOfReferences?.InnerText,
+                RuleCount = format.Elements<ConditionalFormattingRule>().Count(),
+                RuleTypes = format.Elements<ConditionalFormattingRule>()
+                    .Select(rule => rule.Type?.Value.ToString() ?? "unknown")
+                    .Distinct()
+                    .ToList(),
+                Priorities = format.Elements<ConditionalFormattingRule>()
+                    .Select(rule => (int)(rule.Priority?.Value ?? 0))
+                    .Where(priority => priority > 0)
+                    .ToList()
+            })
+            .ToList();
     }
 
     private static string GetSheetVisibility(Sheet sheet)
     {
-        if (sheet.State == null)
-            return "visible";
-
-        return sheet.State.Value.ToString() switch
-        {
-            "hidden" => "hidden",
-            "veryHidden" => "veryHidden",
-            _ => "visible"
-        };
+        var state = sheet.State?.Value;
+        if (state == SheetStateValues.Hidden) return "hidden";
+        if (state == SheetStateValues.VeryHidden) return "veryHidden";
+        return "visible";
     }
 
     // ── Edit Mode ──
@@ -292,6 +474,7 @@ public class SpreadsheetEditor
         }
 
         // Copy input to output
+        SpreadsheetPackagePreflight.Validate(inputPath);
         File.Copy(inputPath, outputPath, overwrite: true);
 
         using var doc = SpreadsheetDocument.Open(outputPath, true);
@@ -1091,11 +1274,19 @@ internal class SheetData_Read
     public int RowCount { get; set; }
     public int CellCount { get; set; }
     public int FormulaCount { get; set; }
+    public int SharedFormulaCount { get; set; }
+    public int ArrayFormulaCount { get; set; }
+    public int DataTableFormulaCount { get; set; }
     public int CommentCount { get; set; }
+    public int ThreadedCommentCount { get; set; }
     public int TableCount { get; set; }
     public int DataValidationCount { get; set; }
     public int ConditionalFormatCount { get; set; }
     public int PivotTableCount { get; set; }
+    public bool Protected { get; set; }
+    public List<TableInfo> Tables { get; set; } = new();
+    public List<DataValidationInfo> DataValidations { get; set; } = new();
+    public List<ConditionalFormatInfo> ConditionalFormats { get; set; } = new();
     public List<RowData> Rows { get; set; } = new();
 }
 

@@ -12,6 +12,7 @@ SOURCE_FILTER=""
 SUITE_PATH=""
 REPORT_PREFIX=""
 STRICT_MODE=0
+TIMEOUT_SECONDS=30
 
 usage() {
   cat <<'EOF'
@@ -25,6 +26,7 @@ Options:
   --suite <path>      Text file with corpus-relative workbook paths to check
   --report-prefix <x> Prefix for report filenames. Defaults to the mode name.
   --report-dir <dir>  Output directory for TSV reports
+  --timeout <sec>     Per-workbook timeout in seconds. Default: 30
   --strict            Exit non-zero if any files fail
   -h, --help          Show help
 EOF
@@ -58,6 +60,10 @@ while (($# > 0)); do
       ;;
     --report-dir)
       REPORT_DIR="$2"
+      shift 2
+      ;;
+    --timeout)
+      TIMEOUT_SECONDS="$2"
       shift 2
       ;;
     --strict)
@@ -131,6 +137,34 @@ cleanup() {
 }
 trap cleanup EXIT
 
+run_checked_command() {
+  python3 - "$TIMEOUT_SECONDS" "${tmp_err}" "$@" <<'PY'
+import subprocess
+import sys
+
+timeout = float(sys.argv[1])
+stderr_path = sys.argv[2]
+command = sys.argv[3:]
+
+with open(stderr_path, "w", encoding="utf-8") as stderr:
+    try:
+        completed = subprocess.run(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=stderr,
+            timeout=timeout,
+            check=False,
+            text=True,
+        )
+    except subprocess.TimeoutExpired:
+        stderr.write(f"Timed out after {timeout:g}s\n")
+        raise SystemExit(124)
+
+raise SystemExit(completed.returncode)
+PY
+}
+
 if [[ -n "${SUITE_PATH}" ]]; then
   awk '!/^[[:space:]]*(#|$)/ { print $0 }' "${SUITE_PATH}" | while IFS= read -r relative_path; do
     printf '%s/%s\n' "${CORPUS_DIR}" "${relative_path}"
@@ -161,7 +195,7 @@ while IFS= read -r file_path; do
   fi
 
   if [[ "${MODE}" == "read" ]]; then
-    ("${BINARY_PATH}" "${file_path}" --read --json) </dev/null >/dev/null 2>"${tmp_err}"
+    run_checked_command "${BINARY_PATH}" "${file_path}" --read --json
     command_status=$?
 
     if [[ ${command_status} -eq 0 ]]; then
@@ -174,7 +208,7 @@ while IFS= read -r file_path; do
       printf '%s\t%s\tfail\t%s\n' "${source_name}" "${relative_path}" "${error_message}" >> "${STATUS_PATH}"
     fi
   else
-    ("${BINARY_PATH}" --textconv "${file_path}") </dev/null >/dev/null 2>"${tmp_err}"
+    run_checked_command "${BINARY_PATH}" --textconv "${file_path}"
     command_status=$?
 
     if [[ ${command_status} -eq 0 ]]; then
