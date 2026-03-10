@@ -235,12 +235,36 @@ xlsx-review input.xlsx --read --json
 
 ```json
 {
+  "workbook": {
+    "document_type": "workbook",
+    "sheet_count": 1,
+    "worksheet_count": 1,
+    "chartsheet_count": 0,
+    "dialogsheet_count": 0,
+    "hidden_sheet_count": 0,
+    "very_hidden_sheet_count": 0,
+    "defined_name_count": 0,
+    "external_link_count": 0,
+    "has_macros": false,
+    "protected": false
+  },
+  "warnings": [],
   "sheets": [
     {
       "name": "Sheet1",
+      "kind": "worksheet",
+      "visibility": "visible",
+      "row_count": 2,
+      "cell_count": 4,
+      "formula_count": 0,
+      "comment_count": 0,
+      "table_count": 0,
+      "data_validation_count": 0,
+      "conditional_format_count": 0,
+      "pivot_table_count": 0,
       "rows": [
-        { "row": 1, "cells": [{ "cell": "A1", "value": "Name" }, { "cell": "B1", "value": "Age" }] },
-        { "row": 2, "cells": [{ "cell": "A2", "value": "Alice" }, { "cell": "B2", "value": "30" }] }
+        { "row": 1, "cells": [{ "cell": "A1", "value": "Name", "formula": null, "type": "string" }, { "cell": "B1", "value": "Age", "formula": null, "type": "string" }] },
+        { "row": 2, "cells": [{ "cell": "A2", "value": "Alice", "formula": null, "type": "string" }, { "cell": "B2", "value": "30", "formula": null, "type": "number" }] }
       ]
     }
   ]

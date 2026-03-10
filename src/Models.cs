@@ -148,14 +148,98 @@ public class ProcessingResult
 
 public class ReadResult
 {
+    [JsonPropertyName("workbook")]
+    public WorkbookInfo Workbook { get; set; } = new();
+
     [JsonPropertyName("sheets")]
     public List<SheetData> Sheets { get; set; } = new();
+
+    [JsonPropertyName("warnings")]
+    public List<ReadWarning> Warnings { get; set; } = new();
+}
+
+public class WorkbookInfo
+{
+    [JsonPropertyName("document_type")]
+    public string DocumentType { get; set; } = "";
+
+    [JsonPropertyName("sheet_count")]
+    public int SheetCount { get; set; }
+
+    [JsonPropertyName("worksheet_count")]
+    public int WorksheetCount { get; set; }
+
+    [JsonPropertyName("chartsheet_count")]
+    public int ChartsheetCount { get; set; }
+
+    [JsonPropertyName("dialogsheet_count")]
+    public int DialogsheetCount { get; set; }
+
+    [JsonPropertyName("hidden_sheet_count")]
+    public int HiddenSheetCount { get; set; }
+
+    [JsonPropertyName("very_hidden_sheet_count")]
+    public int VeryHiddenSheetCount { get; set; }
+
+    [JsonPropertyName("defined_name_count")]
+    public int DefinedNameCount { get; set; }
+
+    [JsonPropertyName("external_link_count")]
+    public int ExternalLinkCount { get; set; }
+
+    [JsonPropertyName("has_macros")]
+    public bool HasMacros { get; set; }
+
+    [JsonPropertyName("protected")]
+    public bool Protected { get; set; }
+}
+
+public class ReadWarning
+{
+    [JsonPropertyName("scope")]
+    public string Scope { get; set; } = "";
+
+    [JsonPropertyName("target")]
+    public string Target { get; set; } = "";
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = "";
 }
 
 public class SheetData
 {
     [JsonPropertyName("name")]
     public string Name { get; set; } = "";
+
+    [JsonPropertyName("kind")]
+    public string Kind { get; set; } = "worksheet";
+
+    [JsonPropertyName("visibility")]
+    public string Visibility { get; set; } = "visible";
+
+    [JsonPropertyName("row_count")]
+    public int RowCount { get; set; }
+
+    [JsonPropertyName("cell_count")]
+    public int CellCount { get; set; }
+
+    [JsonPropertyName("formula_count")]
+    public int FormulaCount { get; set; }
+
+    [JsonPropertyName("comment_count")]
+    public int CommentCount { get; set; }
+
+    [JsonPropertyName("table_count")]
+    public int TableCount { get; set; }
+
+    [JsonPropertyName("data_validation_count")]
+    public int DataValidationCount { get; set; }
+
+    [JsonPropertyName("conditional_format_count")]
+    public int ConditionalFormatCount { get; set; }
+
+    [JsonPropertyName("pivot_table_count")]
+    public int PivotTableCount { get; set; }
 
     [JsonPropertyName("rows")]
     public List<RowData> Rows { get; set; } = new();
@@ -177,4 +261,10 @@ public class CellData
 
     [JsonPropertyName("value")]
     public string? Value { get; set; }
+
+    [JsonPropertyName("formula")]
+    public string? Formula { get; set; }
+
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
 }

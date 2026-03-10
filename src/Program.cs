@@ -184,14 +184,41 @@ class Program
             }
             else
             {
+                Console.WriteLine(
+                    $"Workbook: type={readResult.Workbook.DocumentType}, " +
+                    $"sheets={readResult.Workbook.SheetCount}, " +
+                    $"worksheets={readResult.Workbook.WorksheetCount}, " +
+                    $"chartsheets={readResult.Workbook.ChartsheetCount}, " +
+                    $"dialogsheets={readResult.Workbook.DialogsheetCount}, " +
+                    $"definedNames={readResult.Workbook.DefinedNameCount}, " +
+                    $"externalLinks={readResult.Workbook.ExternalLinkCount}, " +
+                    $"macros={(readResult.Workbook.HasMacros ? "yes" : "no")}, " +
+                    $"protected={(readResult.Workbook.Protected ? "yes" : "no")}");
+
+                if (readResult.Warnings.Count > 0)
+                {
+                    Console.WriteLine("Warnings:");
+                    foreach (var warning in readResult.Warnings)
+                        Console.WriteLine($"  - {warning.Scope} {warning.Target}: {warning.Message}");
+                }
+
                 // Human-readable output
                 foreach (var sheet in readResult.Sheets)
                 {
-                    Console.WriteLine($"\n📊 Sheet: {sheet.Name}");
+                    Console.WriteLine(
+                        $"\n📊 Sheet: {sheet.Name} " +
+                        $"[{sheet.Kind}, {sheet.Visibility}] " +
+                        $"rows={sheet.RowCount}, cells={sheet.CellCount}, " +
+                        $"formulas={sheet.FormulaCount}, comments={sheet.CommentCount}, " +
+                        $"tables={sheet.TableCount}, validations={sheet.DataValidationCount}, " +
+                        $"conditionalFormats={sheet.ConditionalFormatCount}, pivots={sheet.PivotTableCount}");
                     Console.WriteLine(new string('─', 50));
                     foreach (var row in sheet.Rows)
                     {
-                        var cells = string.Join(" | ", row.Cells.Select(c => $"{c.Cell}={c.Value ?? ""}"));
+                        var cells = string.Join(" | ", row.Cells.Select(c =>
+                            c.Formula != null
+                                ? $"{c.Cell}={c.Value ?? ""} (formula:{c.Formula})"
+                                : $"{c.Cell}={c.Value ?? ""}"));
                         Console.WriteLine($"  Row {row.Row}: {cells}");
                     }
                 }

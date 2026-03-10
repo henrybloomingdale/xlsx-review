@@ -29,20 +29,52 @@ public class SpreadsheetEditor
         var workbookPart = doc.WorkbookPart
             ?? throw new Exception("Invalid spreadsheet: no workbook part");
 
-        var sheets = workbookPart.Workbook.Sheets?.Elements<Sheet>() ?? Enumerable.Empty<Sheet>();
+        var sheets = workbookPart.Workbook.Sheets?.Elements<Sheet>().ToList() ?? new List<Sheet>();
         var sharedStrings = workbookPart.SharedStringTablePart?.SharedStringTable;
+        result.Workbook = BuildWorkbookInfo(doc, workbookPart, sheets);
 
         foreach (var sheet in sheets)
         {
             var sheetData = new SheetData_Read
             {
-                Name = sheet.Name?.Value ?? "Unnamed"
+                Name = sheet.Name?.Value ?? "Unnamed",
+                Visibility = GetSheetVisibility(sheet)
             };
 
-            var worksheetPart = TryGetWorksheetPart(workbookPart, sheet);
-            if (worksheetPart == null) continue;
+            var sheetPart = TryGetSheetPart(workbookPart, sheet);
+            sheetData.Kind = sheetPart.Kind;
 
-            var rows = worksheetPart.Worksheet.Descendants<Row>();
+            if (sheetPart.Warning != null)
+            {
+                result.Warnings.Add(new ReadWarning
+                {
+                    Scope = "sheet",
+                    Target = sheetData.Name,
+                    Message = sheetPart.Warning
+                });
+            }
+
+            if (sheetPart.WorksheetPart == null)
+            {
+                result.Sheets.Add(new SheetData
+                {
+                    Name = sheetData.Name,
+                    Kind = sheetData.Kind,
+                    Visibility = sheetData.Visibility,
+                    RowCount = sheetData.RowCount,
+                    CellCount = sheetData.CellCount,
+                    Rows = sheetData.Rows
+                });
+                continue;
+            }
+
+            sheetData.CommentCount = GetCommentCount(sheetPart.WorksheetPart);
+            sheetData.TableCount = sheetPart.WorksheetPart.TableDefinitionParts.Count();
+            sheetData.DataValidationCount = GetDataValidationCount(sheetPart.WorksheetPart);
+            sheetData.ConditionalFormatCount = sheetPart.WorksheetPart.Worksheet.Elements<ConditionalFormatting>().Count();
+            sheetData.PivotTableCount = sheetPart.WorksheetPart.PivotTableParts.Count();
+
+            var rows = sheetPart.WorksheetPart.Worksheet.Descendants<Row>();
             foreach (var row in rows)
             {
                 var rowData = new RowData { Row = (int)(row.RowIndex?.Value ?? 0) };
@@ -53,21 +85,42 @@ public class SpreadsheetEditor
                     if (cellRef == null) continue;
 
                     string? cellValue = GetCellValue(cell, sharedStrings);
+                    string? formula = cell.CellFormula?.Text;
+                    string cellType = GetCellType(cell);
+
+                    if (formula != null)
+                        sheetData.FormulaCount++;
 
                     rowData.Cells.Add(new CellData
                     {
                         Cell = cellRef,
-                        Value = cellValue
+                        Value = cellValue,
+                        Formula = formula,
+                        Type = cellType
                     });
+                    sheetData.CellCount++;
                 }
 
                 if (rowData.Cells.Count > 0)
+                {
                     sheetData.Rows.Add(rowData);
+                    sheetData.RowCount++;
+                }
             }
 
             result.Sheets.Add(new SheetData
             {
                 Name = sheetData.Name,
+                Kind = sheetData.Kind,
+                Visibility = sheetData.Visibility,
+                RowCount = sheetData.RowCount,
+                CellCount = sheetData.CellCount,
+                FormulaCount = sheetData.FormulaCount,
+                CommentCount = sheetData.CommentCount,
+                TableCount = sheetData.TableCount,
+                DataValidationCount = sheetData.DataValidationCount,
+                ConditionalFormatCount = sheetData.ConditionalFormatCount,
+                PivotTableCount = sheetData.PivotTableCount,
                 Rows = sheetData.Rows
             });
         }
@@ -105,6 +158,93 @@ public class SpreadsheetEditor
         }
 
         return value;
+    }
+
+    private static WorkbookInfo BuildWorkbookInfo(SpreadsheetDocument document, WorkbookPart workbookPart, List<Sheet> sheets)
+    {
+        var workbook = workbookPart.Workbook;
+        var info = new WorkbookInfo
+        {
+            DocumentType = GetDocumentTypeName(document.DocumentType),
+            SheetCount = sheets.Count,
+            DefinedNameCount = workbook.DefinedNames?.Elements<DefinedName>().Count() ?? 0,
+            ExternalLinkCount = workbook.Elements<ExternalReferences>()
+                .SelectMany(x => x.Elements<ExternalReference>())
+                .Count(),
+            HasMacros = workbookPart.GetPartsOfType<VbaProjectPart>().Any(),
+            Protected = workbook.WorkbookProtection?.HasAttributes == true
+        };
+
+        foreach (var sheet in sheets)
+        {
+            string visibility = GetSheetVisibility(sheet);
+            if (visibility == "hidden") info.HiddenSheetCount++;
+            if (visibility == "veryHidden") info.VeryHiddenSheetCount++;
+
+            var sheetPart = TryGetSheetPart(workbookPart, sheet);
+            switch (sheetPart.Kind)
+            {
+                case "worksheet":
+                    info.WorksheetCount++;
+                    break;
+                case "chartsheet":
+                    info.ChartsheetCount++;
+                    break;
+                case "dialogsheet":
+                    info.DialogsheetCount++;
+                    break;
+            }
+        }
+
+        return info;
+    }
+
+    private static string GetDocumentTypeName(SpreadsheetDocumentType documentType) => documentType switch
+    {
+        SpreadsheetDocumentType.Workbook => "workbook",
+        SpreadsheetDocumentType.Template => "template",
+        SpreadsheetDocumentType.MacroEnabledWorkbook => "macroEnabledWorkbook",
+        SpreadsheetDocumentType.MacroEnabledTemplate => "macroEnabledTemplate",
+        SpreadsheetDocumentType.AddIn => "addIn",
+        _ => documentType.ToString()
+    };
+
+    private static string GetCellType(Cell cell)
+    {
+        if (cell.CellFormula != null) return "formula";
+        if (cell.DataType?.Value == CellValues.InlineString) return "string";
+        if (cell.DataType?.Value == CellValues.SharedString) return "string";
+        if (cell.DataType?.Value == CellValues.Boolean) return "boolean";
+        if (cell.CellValue != null) return "number";
+        return "empty";
+    }
+
+    private static int GetCommentCount(WorksheetPart worksheetPart)
+    {
+        return worksheetPart.WorksheetCommentsPart?.Comments?
+            .GetFirstChild<CommentList>()?
+            .Elements<Comment>()
+            .Count() ?? 0;
+    }
+
+    private static int GetDataValidationCount(WorksheetPart worksheetPart)
+    {
+        return worksheetPart.Worksheet.Elements<DataValidations>()
+            .SelectMany(x => x.Elements<DataValidation>())
+            .Count();
+    }
+
+    private static string GetSheetVisibility(Sheet sheet)
+    {
+        if (sheet.State == null)
+            return "visible";
+
+        return sheet.State.Value.ToString() switch
+        {
+            "hidden" => "hidden",
+            "veryHidden" => "veryHidden",
+            _ => "visible"
+        };
     }
 
     // ── Edit Mode ──
@@ -802,6 +942,43 @@ public class SpreadsheetEditor
         }
     }
 
+    private static ReadSheetPart TryGetSheetPart(WorkbookPart workbookPart, Sheet sheet)
+    {
+        string? relId = sheet.Id?.Value;
+        if (string.IsNullOrWhiteSpace(relId))
+        {
+            return new ReadSheetPart
+            {
+                Kind = "unreadable",
+                Warning = "Missing relationship id"
+            };
+        }
+
+        try
+        {
+            var part = workbookPart.GetPartById(relId);
+            return part switch
+            {
+                WorksheetPart worksheetPart => new ReadSheetPart { Kind = "worksheet", WorksheetPart = worksheetPart },
+                ChartsheetPart => new ReadSheetPart { Kind = "chartsheet" },
+                DialogsheetPart => new ReadSheetPart { Kind = "dialogsheet" },
+                _ => new ReadSheetPart
+                {
+                    Kind = "unsupported",
+                    Warning = $"Unsupported sheet part type: {part.GetType().Name}"
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return new ReadSheetPart
+            {
+                Kind = "unreadable",
+                Warning = ex.Message
+            };
+        }
+    }
+
     private static Row EnsureRow(DocumentFormat.OpenXml.Spreadsheet.SheetData sheetData, uint rowIndex)
     {
         var row = sheetData.Elements<Row>()
@@ -909,5 +1086,22 @@ public class SpreadsheetEditor
 internal class SheetData_Read
 {
     public string Name { get; set; } = "";
+    public string Kind { get; set; } = "worksheet";
+    public string Visibility { get; set; } = "visible";
+    public int RowCount { get; set; }
+    public int CellCount { get; set; }
+    public int FormulaCount { get; set; }
+    public int CommentCount { get; set; }
+    public int TableCount { get; set; }
+    public int DataValidationCount { get; set; }
+    public int ConditionalFormatCount { get; set; }
+    public int PivotTableCount { get; set; }
     public List<RowData> Rows { get; set; } = new();
+}
+
+internal class ReadSheetPart
+{
+    public string Kind { get; set; } = "worksheet";
+    public WorksheetPart? WorksheetPart { get; set; }
+    public string? Warning { get; set; }
 }
