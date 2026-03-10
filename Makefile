@@ -8,6 +8,7 @@
 #   make docker       # Build Docker image
 #   make smoke        # Run bundled example smoke tests
 #   make test         # Run test against sample spreadsheet
+#   make test-create  # Run create-mode smoke test
 #   make corpus-download  # Download public XLSX regression corpus
 #   make corpus-smoke     # Run a curated read smoke suite from the public corpus
 #   make corpus-check     # Run read checks across the public corpus
@@ -40,7 +41,7 @@ PUBLISH_FLAGS := -c Release \
   -p:PublishSingleFile=true \
   -p:IncludeNativeLibrariesForSelfExtract=true
 
-.PHONY: build build-release install all docker smoke test test-dry corpus-download corpus-smoke corpus-feature-smoke corpus-check corpus-check-fast clean help
+.PHONY: build build-release install all docker smoke test test-dry test-create corpus-download corpus-smoke corpus-feature-smoke corpus-check corpus-check-fast clean help
 
 ## build: Build single-file binary for current platform
 build:
@@ -88,16 +89,19 @@ all:
 docker:
 	docker build -t $(BINARY_NAME) .
 
-## smoke: Run bundled read/diff/edit smoke tests
+## smoke: Run bundled read/diff/edit/create smoke tests
 smoke: build-release
 	@echo "Running bundled smoke tests..."
 	@mkdir -p $(BUILD_DIR)
 	@$(LOCAL_RUNNER) examples/test_old.xlsx --read --json > $(BUILD_DIR)/smoke-read.json
 	@$(LOCAL_RUNNER) --diff examples/test_old.xlsx examples/test_new.xlsx --json > $(BUILD_DIR)/smoke-diff.json
 	@$(LOCAL_RUNNER) examples/test_old.xlsx examples/sample-edits.json -o $(BUILD_DIR)/smoke-output.xlsx --json > $(BUILD_DIR)/smoke-edit.json
+	@$(LOCAL_RUNNER) --create -o $(BUILD_DIR)/smoke-created.xlsx examples/sample-create.json --json > $(BUILD_DIR)/smoke-create.json
 	@grep -q '"success": true' $(BUILD_DIR)/smoke-edit.json
+	@grep -q '"success": true' $(BUILD_DIR)/smoke-create.json
+	@$(LOCAL_RUNNER) $(BUILD_DIR)/smoke-created.xlsx --read --json > $(BUILD_DIR)/smoke-create-read.json
 	@echo "✅ Smoke tests passed"
-	@ls -lh $(BUILD_DIR)/smoke-output.xlsx
+	@ls -lh $(BUILD_DIR)/smoke-output.xlsx $(BUILD_DIR)/smoke-created.xlsx
 
 ## test: Run test against a sample spreadsheet
 test: build-release
@@ -121,6 +125,20 @@ test-dry: build-release
 	else \
 		echo "Usage: make test-dry TEST_DOC=/path/to/spreadsheet.xlsx"; \
 	fi
+
+## test-create: Exercise create mode with the sample manifest
+test-create: build-release
+	@echo "Testing --create mode..."
+	@$(LOCAL_RUNNER) --create -o $(BUILD_DIR)/test_created.xlsx examples/sample-create.json --json > $(BUILD_DIR)/test-create.json
+	@grep -q '"success": true' $(BUILD_DIR)/test-create.json
+	@echo "Testing --create with template..."
+	@$(LOCAL_RUNNER) --create --template examples/test_old.xlsx -o $(BUILD_DIR)/test_created_from_template.xlsx examples/sample-edits.json --json > $(BUILD_DIR)/test-create-template.json
+	@grep -q '"success": true' $(BUILD_DIR)/test-create-template.json
+	@echo "Testing --create dry-run..."
+	@$(LOCAL_RUNNER) --create examples/sample-create.json --dry-run --json > $(BUILD_DIR)/test-create-dry.json
+	@grep -q '"success": true' $(BUILD_DIR)/test-create-dry.json
+	@ls -lh $(BUILD_DIR)/test_created.xlsx $(BUILD_DIR)/test_created_from_template.xlsx
+	@echo "✅ Create tests passed"
 
 ## corpus-download: Download the public XLSX regression corpus
 corpus-download:
@@ -164,6 +182,7 @@ help:
 	@echo "  make install                      # Build + install to $(INSTALL_DIR)"
 	@echo "  make all                          # Cross-compile all platforms"
 	@echo "  make smoke                        # Run bundled example smoke tests"
+	@echo "  make test-create                  # Exercise workbook creation mode"
 	@echo "  make corpus-download              # Download public XLSX corpus"
 	@echo "  make corpus-smoke                 # Run the curated corpus smoke suite"
 	@echo "  make corpus-feature-smoke         # Assert workbook/sheet feature metadata"

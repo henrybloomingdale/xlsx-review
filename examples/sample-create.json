@@ -1,0 +1,47 @@
+{
+  "author": "Dr. Smith",
+  "changes": [
+    {
+      "type": "set_cell",
+      "sheet": "Sheet1",
+      "cell": "A1",
+      "value": "Patient ID"
+    },
+    {
+      "type": "set_cell",
+      "sheet": "Sheet1",
+      "cell": "B1",
+      "value": "Score"
+    },
+    {
+      "type": "set_cell",
+      "sheet": "Sheet1",
+      "cell": "A2",
+      "value": "P001"
+    },
+    {
+      "type": "set_cell",
+      "sheet": "Sheet1",
+      "cell": "B2",
+      "value": "42",
+      "format": "number"
+    },
+    {
+      "type": "add_sheet",
+      "name": "Summary"
+    },
+    {
+      "type": "set_formula",
+      "sheet": "Summary",
+      "cell": "A1",
+      "formula": "COUNTA(Sheet1!A:A)-1"
+    }
+  ],
+  "comments": [
+    {
+      "sheet": "Sheet1",
+      "cell": "A2",
+      "text": "Created from the sample workbook manifest."
+    }
+  ]
+}

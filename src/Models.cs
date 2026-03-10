@@ -9,6 +9,7 @@ namespace XlsxReview;
 /// </summary>
 [JsonSerializable(typeof(EditManifest))]
 [JsonSerializable(typeof(ProcessingResult))]
+[JsonSerializable(typeof(CreateResult))]
 [JsonSerializable(typeof(ReadResult))]
 [JsonSerializable(typeof(XlsxDiffResult))]
 [JsonSourceGenerationOptions(
@@ -124,6 +125,36 @@ public class ProcessingResult
 
     [JsonPropertyName("author")]
     public string Author { get; set; } = "";
+
+    [JsonPropertyName("changes_attempted")]
+    public int ChangesAttempted { get; set; }
+
+    [JsonPropertyName("changes_succeeded")]
+    public int ChangesSucceeded { get; set; }
+
+    [JsonPropertyName("comments_attempted")]
+    public int CommentsAttempted { get; set; }
+
+    [JsonPropertyName("comments_succeeded")]
+    public int CommentsSucceeded { get; set; }
+
+    [JsonPropertyName("results")]
+    public List<EditResult> Results { get; set; } = new();
+
+    [JsonPropertyName("success")]
+    public bool Success { get; set; }
+}
+
+public class CreateResult
+{
+    [JsonPropertyName("template")]
+    public string Template { get; set; } = "";
+
+    [JsonPropertyName("output")]
+    public string? Output { get; set; }
+
+    [JsonPropertyName("populated")]
+    public bool Populated { get; set; }
 
     [JsonPropertyName("changes_attempted")]
     public int ChangesAttempted { get; set; }

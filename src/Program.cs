@@ -17,11 +17,13 @@ class Program
         bool jsonOutput = false;
         bool dryRun = false;
         bool readMode = false;
+        bool createMode = false;
         bool diffMode = false;
         bool textConvMode = false;
         bool gitSetup = false;
         bool showHelp = false;
         bool showVersion = false;
+        string? templatePath = null;
         var positionalArgs = new List<string>();
 
         for (int i = 0; i < args.Length; i++)
@@ -47,6 +49,12 @@ class Program
                     break;
                 case "--read":
                     readMode = true;
+                    break;
+                case "--create":
+                    createMode = true;
+                    break;
+                case "--template":
+                    if (i + 1 < args.Length) templatePath = args[++i];
                     break;
                 case "--diff":
                     diffMode = true;
@@ -78,6 +86,12 @@ class Program
             return 0;
         }
 
+        if (showHelp)
+        {
+            PrintUsage();
+            return 0;
+        }
+
         // ── Git setup ──────────────────────────────────────────────
         if (gitSetup)
         {
@@ -85,10 +99,91 @@ class Program
             return 0;
         }
 
-        if (showHelp || (inputPath == null && !gitSetup))
+        // ── Create mode ──────────────────────────────────────────
+        if (createMode)
+        {
+            if (positionalArgs.Count > 1)
+            {
+                Error("--create accepts at most one positional manifest path");
+                return 1;
+            }
+
+            if (outputPath == null && !dryRun)
+            {
+                Error("--create requires -o/--output path: xlsx-review --create -o workbook.xlsx");
+                return 1;
+            }
+
+            string? createManifestPath = positionalArgs.Count == 1 ? positionalArgs[0] : null;
+            EditManifest? createManifest = null;
+
+            if (createManifestPath != null)
+            {
+                if (!File.Exists(createManifestPath))
+                {
+                    Error($"Manifest file not found: {createManifestPath}");
+                    return 1;
+                }
+
+                try
+                {
+                    string createManifestJson = File.ReadAllText(createManifestPath);
+                    createManifest = JsonSerializer.Deserialize(createManifestJson, XlsxReviewJsonContext.Default.EditManifest)
+                        ?? throw new Exception("Manifest deserialized to null");
+                }
+                catch (Exception ex)
+                {
+                    Error($"Failed to parse manifest JSON: {ex.Message}");
+                    return 1;
+                }
+            }
+            else if (Console.IsInputRedirected)
+            {
+                string createManifestJson = Console.In.ReadToEnd();
+                if (!string.IsNullOrWhiteSpace(createManifestJson))
+                {
+                    try
+                    {
+                        createManifest = JsonSerializer.Deserialize(createManifestJson, XlsxReviewJsonContext.Default.EditManifest)
+                            ?? throw new Exception("Manifest deserialized to null");
+                    }
+                    catch (Exception ex)
+                    {
+                        Error($"Failed to parse manifest JSON: {ex.Message}");
+                        return 1;
+                    }
+                }
+            }
+
+            string createAuthor = author ?? createManifest?.Author ?? "Author";
+
+            try
+            {
+                var creator = new WorkbookCreator();
+                var createResult = creator.Create(outputPath ?? "", createManifest, createAuthor, templatePath, dryRun);
+
+                if (jsonOutput)
+                {
+                    Console.WriteLine(JsonSerializer.Serialize(createResult, XlsxReviewJsonContext.Default.CreateResult));
+                }
+                else
+                {
+                    PrintCreateResult(createResult, dryRun);
+                }
+
+                return createResult.Success ? 0 : 1;
+            }
+            catch (Exception ex)
+            {
+                Error($"Create failed: {ex.Message}");
+                return 1;
+            }
+        }
+
+        if (inputPath == null)
         {
             PrintUsage();
-            return showHelp ? 0 : 1;
+            return 1;
         }
 
         // ── Diff mode ─────────────────────────────────────────────
@@ -305,15 +400,21 @@ class Program
 
     static void PrintUsage()
     {
-        Console.Error.WriteLine(@"xlsx-review — Read, write, and diff Excel spreadsheets with full cell awareness
+        Console.Error.WriteLine(@"xlsx-review — Read, write, create, and diff Excel spreadsheets with full cell awareness
 
 Usage:
+  xlsx-review --create -o <output.xlsx> [manifest.json]  Create new workbook
   xlsx-review <input.xlsx> --read [--json]               Read spreadsheet contents
   xlsx-review <input.xlsx> <edits.json> [options]        Write cell changes/comments
   xlsx-review --diff <old.xlsx> <new.xlsx> [--json]      Semantic spreadsheet diff
   xlsx-review --textconv <file.xlsx>                     Git textconv (normalized text)
   xlsx-review --git-setup                                Print git configuration
   cat edits.json | xlsx-review <input.xlsx> [options]
+
+Create Options:
+  --create               Create a new workbook (blank by default)
+  --template <path>      Use a custom workbook template instead of a generated blank workbook
+  -o, --output <path>    Output file path (required for create)
 
 Diff & Git Integration:
   --diff                 Compare two spreadsheets semantically (cells, formulas,
@@ -323,7 +424,7 @@ Diff & Git Integration:
 
 Read/Write Options:
   --read                 Read mode: extract cell values from all sheets
-  -o, --output <path>    Output file path (default: <input>_edited.xlsx)
+  -o, --output <path>    Output file path (default: <input>_edited.xlsx for edits)
   --author <name>        Author name for comments (overrides manifest author)
   --json                 Output results as JSON
   --dry-run              Validate manifest without modifying
@@ -345,7 +446,13 @@ JSON Manifest Format:
     ""comments"": [
       { ""sheet"": ""Sheet1"", ""cell"": ""A1"", ""text"": ""Review note"" }
     ]
-  }");
+  }
+
+Examples:
+  xlsx-review --create -o workbook.xlsx
+  xlsx-review --create -o workbook.xlsx create.json --json
+  cat create.json | xlsx-review --create -o workbook.xlsx
+");
     }
 
     static void PrintGitSetup()
@@ -396,6 +503,38 @@ For two-file comparison outside git:
             Console.WriteLine(dryRun ? "✅ All edits would succeed" : "✅ All edits applied successfully");
         else
             Console.WriteLine("⚠️  Some edits failed (see above)");
+    }
+
+    static void PrintCreateResult(CreateResult result, bool dryRun)
+    {
+        string mode = dryRun ? "[DRY RUN] " : "";
+        Console.WriteLine($"\n{mode}xlsx-review create");
+        Console.WriteLine(new string('─', 50));
+        Console.WriteLine($"  Template: {result.Template}");
+        if (!dryRun && result.Output != null)
+            Console.WriteLine($"  Output:   {result.Output}");
+        Console.WriteLine($"  Populated: {(result.Populated ? "yes" : "no")}");
+
+        if (result.Populated)
+        {
+            Console.WriteLine($"  Changes:   {result.ChangesSucceeded}/{result.ChangesAttempted}");
+            Console.WriteLine($"  Comments:  {result.CommentsSucceeded}/{result.CommentsAttempted}");
+            Console.WriteLine();
+
+            foreach (var r in result.Results)
+            {
+                string icon = r.Success ? "✓" : "✗";
+                Console.WriteLine($"  {icon} [{r.Type}] {r.Message}");
+            }
+        }
+
+        Console.WriteLine();
+        if (!result.Populated)
+            Console.WriteLine(dryRun ? "✅ Workbook would be created successfully" : "✅ Workbook created successfully");
+        else if (result.Success)
+            Console.WriteLine(dryRun ? "✅ Workbook would be created and populated successfully" : "✅ Workbook created and populated successfully");
+        else
+            Console.WriteLine("⚠️  Some create-time edits failed (see above)");
     }
 
     static string GetVersion()
