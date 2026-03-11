@@ -1,0 +1,21 @@
+# path	field	expected
+conditional-output.xlsx	sheet:Data.conditional_format_count	=2
+conditional-output.xlsx	sheet:Data.conditional_formats.0.range	=C2:C6
+conditional-output.xlsx	sheet:Data.conditional_formats.0.rule_count	=1
+conditional-output.xlsx	sheet:Data.conditional_formats.0.rule_types.0	contains:expression
+conditional-output.xlsx	sheet:Data.conditional_formats.0.priorities.0	=1
+conditional-output.xlsx	sheet:Data.conditional_formats.0.rules.0.stop_if_true	=true
+conditional-output.xlsx	sheet:Data.conditional_formats.0.rules.0.fill_color	=#FFFF00
+conditional-output.xlsx	sheet:Data.conditional_formats.0.rules.0.formulas.0	contains:Treatment
+conditional-output.xlsx	sheet:Data.conditional_formats.1.range	=D2:D6
+conditional-output.xlsx	sheet:Data.conditional_formats.1.rule_count	=1
+conditional-output.xlsx	sheet:Data.conditional_formats.1.rule_types.0	contains:cellIs
+conditional-output.xlsx	sheet:Data.conditional_formats.1.priorities.0	=2
+conditional-output.xlsx	sheet:Data.conditional_formats.1.rules.0.operator	=greaterThan
+conditional-output.xlsx	sheet:Data.conditional_formats.1.rules.0.fill_color	=#FDE9D9
+conditional-output.xlsx	sheet:Data.conditional_formats.1.rules.0.formulas.0	=50
+conditional-created.xlsx	sheet:Data.conditional_format_count	=2
+conditional-created.xlsx	sheet:Data.conditional_formats.0.rule_types.0	contains:expression
+conditional-created.xlsx	sheet:Data.conditional_formats.1.rule_types.0	contains:cellIs
+conditional-created.xlsx	sheet:Data.conditional_formats.1.rules.0.fill_color	=#FDE9D9
+conditional-reset.xlsx	sheet:Data.conditional_format_count	=0

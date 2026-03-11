@@ -1,0 +1,15 @@
+{
+  "author": "Dr. Smith",
+  "changes": [
+    {
+      "type": "clear_conditional_format",
+      "sheet": "Data",
+      "range": "C2:C6"
+    },
+    {
+      "type": "clear_conditional_format",
+      "sheet": "Data",
+      "range": "D2:D6"
+    }
+  ]
+}

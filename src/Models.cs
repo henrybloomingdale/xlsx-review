@@ -106,6 +106,12 @@ public class Change
     [JsonPropertyName("validation_operator")]
     public string? ValidationOperator { get; set; }
 
+    [JsonPropertyName("conditional_type")]
+    public string? ConditionalType { get; set; }
+
+    [JsonPropertyName("conditional_operator")]
+    public string? ConditionalOperator { get; set; }
+
     [JsonPropertyName("formula1")]
     public string? Formula1 { get; set; }
 
@@ -120,6 +126,15 @@ public class Change
 
     [JsonPropertyName("show_error_message")]
     public bool? ShowErrorMessage { get; set; }
+
+    [JsonPropertyName("priority")]
+    public int? Priority { get; set; }
+
+    [JsonPropertyName("fill_color")]
+    public string? FillColor { get; set; }
+
+    [JsonPropertyName("stop_if_true")]
+    public bool? StopIfTrue { get; set; }
 
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
@@ -502,6 +517,30 @@ public class ConditionalFormatInfo
 
     [JsonPropertyName("priorities")]
     public List<int> Priorities { get; set; } = new();
+
+    [JsonPropertyName("rules")]
+    public List<ConditionalFormatRuleInfo> Rules { get; set; } = new();
+}
+
+public class ConditionalFormatRuleInfo
+{
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    [JsonPropertyName("operator")]
+    public string? Operator { get; set; }
+
+    [JsonPropertyName("priority")]
+    public int Priority { get; set; }
+
+    [JsonPropertyName("stop_if_true")]
+    public bool StopIfTrue { get; set; }
+
+    [JsonPropertyName("fill_color")]
+    public string? FillColor { get; set; }
+
+    [JsonPropertyName("formulas")]
+    public List<string> Formulas { get; set; } = new();
 }
 
 public class HyperlinkInfo

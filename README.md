@@ -86,6 +86,9 @@ xlsx-review input.xlsx examples/sample-print-layout-edits.json -o printable.xlsx
 # Add worksheet data validation rules
 xlsx-review input.xlsx examples/sample-data-validation-edits.json -o validated.xlsx
 
+# Add conditional formatting rules
+xlsx-review input.xlsx examples/sample-conditional-format-edits.json -o highlighted.xlsx
+
 # Read spreadsheet (human-readable)
 xlsx-review input.xlsx --read
 
@@ -157,6 +160,8 @@ that there is no input workbook when you pass `--create`.
 | `clear_page_orientation` | `sheet` | Clear explicit page orientation |
 | `set_data_validation` | `sheet`, `range`, `validation_type`, `formula1` | Add or replace a worksheet data validation rule. Optional fields: `validation_operator`, `formula2`, `allow_blank`, `show_input_message`, `show_error_message`. |
 | `clear_data_validation` | `sheet`, `range` | Remove a worksheet data validation rule that exactly matches the target range |
+| `set_conditional_format` | `sheet`, `range`, `conditional_type`, `formula1` | Add or replace a worksheet conditional format using `expression` or `cellIs`. Optional fields: `conditional_operator`, `formula2`, `priority`, `fill_color`, `stop_if_true`. |
+| `clear_conditional_format` | `sheet`, `range` | Remove worksheet conditional formatting entries that exactly match the target range |
 
 ## Create Mode
 
@@ -194,6 +199,7 @@ The current worksheet UX tranche covers:
 - print area
 - page orientation
 - data validation
+- conditional formatting
 
 See [docs/advanced-features-roadmap.md](/Users/ernie/Documents/irl_projects/xlsx-review/docs/advanced-features-roadmap.md) for the phased plan covering the rest of worksheet UX, tables, validations, conditional formats, richer formula handling, charts, pivots, and connected-workbook features.
 
@@ -288,6 +294,7 @@ make test-worksheet-ux  # Run worksheet UX smoke test
 make test-hyperlinks  # Run hyperlink smoke test
 make test-print-layout  # Run print layout smoke test
 make test-data-validation  # Run data validation smoke test
+make test-conditional-format  # Run conditional formatting smoke test
 make corpus-download  # Download the public XLSX regression corpus
 make corpus-smoke     # Run published-binary corpus smoke checks
 make corpus-feature-smoke  # Assert workbook/sheet metadata on representative files

@@ -426,12 +426,26 @@ public class SpreadsheetEditor
                 Range = format.SequenceOfReferences?.InnerText,
                 RuleCount = format.Elements<ConditionalFormattingRule>().Count(),
                 RuleTypes = format.Elements<ConditionalFormattingRule>()
-                    .Select(rule => rule.Type?.Value.ToString() ?? "unknown")
+                    .Select(rule => GetConditionalFormatTypeName(rule) ?? "unknown")
                     .Distinct()
                     .ToList(),
                 Priorities = format.Elements<ConditionalFormattingRule>()
                     .Select(rule => (int)(rule.Priority?.Value ?? 0))
                     .Where(priority => priority > 0)
+                    .ToList(),
+                Rules = format.Elements<ConditionalFormattingRule>()
+                    .Select(rule => new ConditionalFormatRuleInfo
+                    {
+                        Type = GetConditionalFormatTypeName(rule),
+                        Operator = GetConditionalFormatOperatorName(rule),
+                        Priority = (int)(rule.Priority?.Value ?? 0),
+                        StopIfTrue = rule.StopIfTrue?.Value ?? false,
+                        FillColor = GetConditionalFormatFillColor(worksheetPart, rule),
+                        Formulas = rule.Elements<Formula>()
+                            .Select(formula => formula.Text ?? formula.InnerText)
+                            .Where(text => !string.IsNullOrWhiteSpace(text))
+                            .ToList()
+                    })
                     .ToList()
             })
             .ToList();
@@ -707,6 +721,15 @@ public class SpreadsheetEditor
                 && !string.IsNullOrEmpty(c.Formula1)
                 && (!RequiresSecondValidationFormula(c.ValidationOperator) || !string.IsNullOrEmpty(c.Formula2)),
             "clear_data_validation" => !string.IsNullOrEmpty(c.Sheet) && !string.IsNullOrEmpty(c.Range),
+            "set_conditional_format" => !string.IsNullOrEmpty(c.Sheet)
+                && !string.IsNullOrEmpty(c.Range)
+                && IsValidConditionalFormatType(c.ConditionalType)
+                && !string.IsNullOrEmpty(c.Formula1)
+                && IsValidConditionalFormatOperator(c.ConditionalType, c.ConditionalOperator)
+                && (!RequiresSecondConditionalFormula(c.ConditionalType, c.ConditionalOperator) || !string.IsNullOrEmpty(c.Formula2))
+                && IsValidConditionalFillColor(c.FillColor)
+                && (c.Priority == null || c.Priority > 0),
+            "clear_conditional_format" => !string.IsNullOrEmpty(c.Sheet) && !string.IsNullOrEmpty(c.Range),
             _ => false
         };
 
@@ -750,6 +773,8 @@ public class SpreadsheetEditor
         "clear_page_orientation" => $"Cleared page orientation on {c.Sheet}",
         "set_data_validation" => $"Set data validation on {c.Sheet}!{c.Range} ({c.ValidationType})",
         "clear_data_validation" => $"Cleared data validation on {c.Sheet}!{c.Range}",
+        "set_conditional_format" => $"Set conditional format on {c.Sheet}!{c.Range} ({c.ConditionalType})",
+        "clear_conditional_format" => $"Cleared conditional format on {c.Sheet}!{c.Range}",
         _ => $"Unknown change type: {c.Type}"
     };
 
@@ -841,6 +866,12 @@ public class SpreadsheetEditor
                 break;
             case "clear_data_validation":
                 ClearDataValidation(workbookPart, c.Sheet!, c.Range!);
+                break;
+            case "set_conditional_format":
+                SetConditionalFormat(workbookPart, c);
+                break;
+            case "clear_conditional_format":
+                ClearConditionalFormat(workbookPart, c.Sheet!, c.Range!);
                 break;
             default:
                 throw new Exception($"Unknown change type: {c.Type}");
@@ -1535,6 +1566,66 @@ public class SpreadsheetEditor
             dataValidations.Count = (uint)dataValidations.Elements<DataValidation>().Count();
     }
 
+    private void SetConditionalFormat(WorkbookPart workbookPart, Change change)
+    {
+        var worksheet = GetWorksheetPart(workbookPart, change.Sheet!).Worksheet;
+        string normalizedRange = NormalizeSequenceOfReferences(change.Range!);
+
+        foreach (var existing in FindConditionalFormattingMatches(worksheet, normalizedRange))
+            existing.Remove();
+
+        var conditionalFormatting = new ConditionalFormatting
+        {
+            SequenceOfReferences = new ListValue<StringValue> { InnerText = normalizedRange }
+        };
+
+        var rule = new ConditionalFormattingRule
+        {
+            Type = ParseConditionalFormatType(change.ConditionalType!),
+            Priority = change.Priority ?? GetNextConditionalFormatPriority(worksheet),
+            FormatId = EnsureConditionalFillFormatId(workbookPart, change.FillColor)
+        };
+
+        if (change.StopIfTrue != null)
+            rule.StopIfTrue = change.StopIfTrue.Value;
+
+        if (rule.Type?.Value == ConditionalFormatValues.CellIs)
+            rule.Operator = ParseConditionalFormatOperator(change.ConditionalOperator!);
+
+        rule.AppendChild(new Formula(change.Formula1!));
+        if (!string.IsNullOrWhiteSpace(change.Formula2))
+            rule.AppendChild(new Formula(change.Formula2!));
+
+        conditionalFormatting.AppendChild(rule);
+        InsertWorksheetElementAfterPredecessors(
+            worksheet,
+            conditionalFormatting,
+            typeof(ConditionalFormatting),
+            typeof(MergeCells),
+            typeof(CustomSheetViews),
+            typeof(DataConsolidate),
+            typeof(SortState),
+            typeof(AutoFilter),
+            typeof(Scenarios),
+            typeof(ProtectedRanges),
+            typeof(SheetProtection),
+            typeof(SheetCalculationProperties),
+            typeof(DocumentFormat.OpenXml.Spreadsheet.SheetData));
+    }
+
+    private void ClearConditionalFormat(WorkbookPart workbookPart, string sheetName, string range)
+    {
+        var worksheet = GetWorksheetPart(workbookPart, sheetName).Worksheet;
+        string normalizedRange = NormalizeSequenceOfReferences(range);
+        var matches = FindConditionalFormattingMatches(worksheet, normalizedRange);
+
+        if (matches.Count == 0)
+            throw new Exception($"Conditional format '{sheetName}!{range}' not found");
+
+        foreach (var match in matches)
+            match.Remove();
+    }
+
     // ── Comments (Legacy Notes) ──
 
     private void ApplyComment(WorkbookPart workbookPart, CommentDef commentDef)
@@ -1754,6 +1845,44 @@ public class SpreadsheetEditor
             );
         }
         return stylesPart.Stylesheet;
+    }
+
+    private uint EnsureConditionalFillFormatId(WorkbookPart workbookPart, string? fillColor)
+    {
+        if (!IsValidConditionalFillColor(fillColor))
+            throw new Exception($"Invalid conditional fill color: {fillColor}");
+
+        var stylesheet = EnsureStylesheet(workbookPart);
+        var differentialFormats = stylesheet.DifferentialFormats;
+        if (differentialFormats == null)
+        {
+            differentialFormats = new DifferentialFormats();
+            stylesheet.DifferentialFormats = differentialFormats;
+        }
+
+        string normalizedColor = NormalizeConditionalFillColor(fillColor!);
+        int index = 0;
+        foreach (var format in differentialFormats.Elements<DifferentialFormat>())
+        {
+            var existingColor = format.Fill?.PatternFill?.ForegroundColor?.Rgb?.Value;
+            var existingPattern = format.Fill?.PatternFill?.PatternType?.Value;
+            if (string.Equals(existingColor, normalizedColor, StringComparison.OrdinalIgnoreCase)
+                && existingPattern == PatternValues.Solid)
+            {
+                return (uint)index;
+            }
+
+            index++;
+        }
+
+        differentialFormats.AppendChild(new DifferentialFormat(
+            new Fill(
+                new PatternFill(
+                    new ForegroundColor { Rgb = new HexBinaryValue(normalizedColor) },
+                    new BackgroundColor { Indexed = 64U })
+                { PatternType = PatternValues.Solid })));
+        differentialFormats.Count = (uint)differentialFormats.Elements<DifferentialFormat>().Count();
+        return differentialFormats.Count.Value - 1;
     }
 
     // ── Helpers ──
@@ -1998,12 +2127,135 @@ public class SpreadsheetEditor
         }
     }
 
+    private static bool IsValidConditionalFormatType(string? conditionalType)
+    {
+        return TryParseConditionalFormatType(conditionalType, out _);
+    }
+
+    private static bool IsValidConditionalFormatOperator(string? conditionalType, string? conditionalOperator)
+    {
+        string normalizedType = NormalizeValidationKeyword(conditionalType);
+        if (normalizedType == "expression")
+            return string.IsNullOrWhiteSpace(conditionalOperator);
+
+        return normalizedType == "cellis"
+            && conditionalOperator != null
+            && TryParseConditionalFormatOperator(conditionalOperator, out _);
+    }
+
+    private static bool RequiresSecondConditionalFormula(string? conditionalType, string? conditionalOperator)
+    {
+        if (NormalizeValidationKeyword(conditionalType) != "cellis")
+            return false;
+
+        if (!TryParseConditionalFormatOperator(conditionalOperator, out var parsed))
+            return false;
+
+        return parsed == ConditionalFormattingOperatorValues.Between
+            || parsed == ConditionalFormattingOperatorValues.NotBetween;
+    }
+
+    private static ConditionalFormatValues ParseConditionalFormatType(string conditionalType)
+    {
+        if (TryParseConditionalFormatType(conditionalType, out var parsed))
+            return parsed;
+
+        throw new Exception("Conditional format type must be one of: expression, cellIs");
+    }
+
+    private static bool TryParseConditionalFormatType(string? conditionalType, out ConditionalFormatValues parsed)
+    {
+        string normalized = NormalizeValidationKeyword(conditionalType);
+        switch (normalized)
+        {
+            case "expression":
+                parsed = ConditionalFormatValues.Expression;
+                return true;
+            case "cellis":
+                parsed = ConditionalFormatValues.CellIs;
+                return true;
+            default:
+                parsed = default;
+                return false;
+        }
+    }
+
+    private static ConditionalFormattingOperatorValues ParseConditionalFormatOperator(string conditionalOperator)
+    {
+        if (TryParseConditionalFormatOperator(conditionalOperator, out var parsed))
+            return parsed;
+
+        throw new Exception("Conditional format operator must be one of: between, notBetween, equal, notEqual, lessThan, lessThanOrEqual, greaterThan, greaterThanOrEqual");
+    }
+
+    private static bool TryParseConditionalFormatOperator(string? conditionalOperator, out ConditionalFormattingOperatorValues parsed)
+    {
+        string normalized = NormalizeValidationKeyword(conditionalOperator);
+        switch (normalized)
+        {
+            case "between":
+                parsed = ConditionalFormattingOperatorValues.Between;
+                return true;
+            case "notbetween":
+                parsed = ConditionalFormattingOperatorValues.NotBetween;
+                return true;
+            case "equal":
+                parsed = ConditionalFormattingOperatorValues.Equal;
+                return true;
+            case "notequal":
+                parsed = ConditionalFormattingOperatorValues.NotEqual;
+                return true;
+            case "lessthan":
+                parsed = ConditionalFormattingOperatorValues.LessThan;
+                return true;
+            case "lessthanorequal":
+                parsed = ConditionalFormattingOperatorValues.LessThanOrEqual;
+                return true;
+            case "greaterthan":
+                parsed = ConditionalFormattingOperatorValues.GreaterThan;
+                return true;
+            case "greaterthanorequal":
+                parsed = ConditionalFormattingOperatorValues.GreaterThanOrEqual;
+                return true;
+            default:
+                parsed = default;
+                return false;
+        }
+    }
+
+    private static bool IsValidConditionalFillColor(string? fillColor)
+    {
+        if (string.IsNullOrWhiteSpace(fillColor))
+            return true;
+
+        string keyword = NormalizeValidationKeyword(fillColor);
+        if (keyword == "yellow")
+            return true;
+
+        string normalized = fillColor.Trim().TrimStart('#');
+        return normalized.Length is 6 or 8 && normalized.All(Uri.IsHexDigit);
+    }
+
     private static string NormalizeValidationKeyword(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
             return "";
 
         return Regex.Replace(value.Trim(), @"[\s_-]+", "").ToLowerInvariant();
+    }
+
+    private static string NormalizeConditionalFillColor(string? fillColor)
+    {
+        string raw = string.IsNullOrWhiteSpace(fillColor) ? "yellow" : fillColor.Trim();
+        if (!IsValidConditionalFillColor(raw))
+            throw new Exception($"Invalid conditional fill color: {fillColor}");
+
+        string keyword = NormalizeValidationKeyword(raw);
+        if (keyword == "yellow")
+            return "FFFFFF00";
+
+        string normalized = raw.TrimStart('#').ToUpperInvariant();
+        return normalized.Length == 6 ? $"FF{normalized}" : normalized;
     }
 
     private static string NormalizePrintArea(string sheetName, string range)
@@ -2024,6 +2276,78 @@ public class SpreadsheetEditor
             return "";
 
         return Regex.Replace(range.Trim(), @"\s+", " ");
+    }
+
+    private static string? ToDisplayHexColor(string? color)
+    {
+        if (string.IsNullOrWhiteSpace(color))
+            return null;
+
+        string normalized = color.Trim().TrimStart('#').ToUpperInvariant();
+        if (normalized.Length == 8)
+            normalized = normalized[2..];
+
+        return normalized.Length == 6 ? $"#{normalized}" : $"#{color.Trim().TrimStart('#')}";
+    }
+
+    private static List<ConditionalFormatting> FindConditionalFormattingMatches(Worksheet worksheet, string normalizedRange)
+    {
+        return worksheet.Elements<ConditionalFormatting>()
+            .Where(format => NormalizeSequenceOfReferences(format.SequenceOfReferences?.InnerText) == normalizedRange)
+            .ToList();
+    }
+
+    private static int GetNextConditionalFormatPriority(Worksheet worksheet)
+    {
+        return worksheet.Elements<ConditionalFormatting>()
+            .SelectMany(format => format.Elements<ConditionalFormattingRule>())
+            .Select(rule => (int)(rule.Priority?.Value ?? 0))
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+    }
+
+    private static string? GetConditionalFormatTypeName(ConditionalFormattingRule rule)
+    {
+        var type = rule.Type?.Value;
+        if (type == null)
+            return null;
+
+        return type == ConditionalFormatValues.Expression ? "expression"
+            : type == ConditionalFormatValues.CellIs ? "cellIs"
+            : rule.Type?.InnerText;
+    }
+
+    private static string? GetConditionalFormatOperatorName(ConditionalFormattingRule rule)
+    {
+        var op = rule.Operator?.Value;
+        if (op == null)
+            return null;
+
+        return op == ConditionalFormattingOperatorValues.Between ? "between"
+            : op == ConditionalFormattingOperatorValues.NotBetween ? "notBetween"
+            : op == ConditionalFormattingOperatorValues.Equal ? "equal"
+            : op == ConditionalFormattingOperatorValues.NotEqual ? "notEqual"
+            : op == ConditionalFormattingOperatorValues.LessThan ? "lessThan"
+            : op == ConditionalFormattingOperatorValues.LessThanOrEqual ? "lessThanOrEqual"
+            : op == ConditionalFormattingOperatorValues.GreaterThan ? "greaterThan"
+            : op == ConditionalFormattingOperatorValues.GreaterThanOrEqual ? "greaterThanOrEqual"
+            : rule.Operator?.InnerText;
+    }
+
+    private static string? GetConditionalFormatFillColor(WorksheetPart worksheetPart, ConditionalFormattingRule rule)
+    {
+        uint? formatId = rule.FormatId?.Value;
+        if (formatId == null)
+            return null;
+
+        var differentialFormat = worksheetPart.GetParentParts()
+            .OfType<WorkbookPart>()
+            .FirstOrDefault()?
+            .WorkbookStylesPart?.Stylesheet?.DifferentialFormats?
+            .Elements<DifferentialFormat>()
+            .ElementAtOrDefault((int)formatId.Value);
+
+        return ToDisplayHexColor(differentialFormat?.Fill?.PatternFill?.ForegroundColor?.Rgb?.Value);
     }
 
     private static string QuoteSheetName(string sheetName)

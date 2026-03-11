@@ -1,0 +1,23 @@
+{
+  "author": "Dr. Smith",
+  "changes": [
+    {
+      "type": "set_conditional_format",
+      "sheet": "Data",
+      "range": "C2:C6",
+      "conditional_type": "expression",
+      "formula1": "C2=\"Treatment\"",
+      "fill_color": "yellow",
+      "stop_if_true": true
+    },
+    {
+      "type": "set_conditional_format",
+      "sheet": "Data",
+      "range": "D2:D6",
+      "conditional_type": "cellIs",
+      "conditional_operator": "greaterThan",
+      "formula1": "50",
+      "fill_color": "FDE9D9"
+    }
+  ]
+}
