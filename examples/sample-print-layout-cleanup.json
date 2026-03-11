@@ -1,0 +1,13 @@
+{
+  "author": "Dr. Smith",
+  "changes": [
+    {
+      "type": "clear_print_area",
+      "sheet": "Data"
+    },
+    {
+      "type": "clear_page_orientation",
+      "sheet": "Data"
+    }
+  ]
+}

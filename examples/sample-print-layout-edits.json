@@ -1,0 +1,15 @@
+{
+  "author": "Dr. Smith",
+  "changes": [
+    {
+      "type": "set_print_area",
+      "sheet": "Data",
+      "range": "$A$1:$D$6"
+    },
+    {
+      "type": "set_page_orientation",
+      "sheet": "Data",
+      "orientation": "landscape"
+    }
+  ]
+}

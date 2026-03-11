@@ -309,6 +309,7 @@ class Program
                         $"tables={sheet.TableCount}, validations={sheet.DataValidationCount}, " +
                         $"conditionalFormats={sheet.ConditionalFormatCount}, pivots={sheet.PivotTableCount}, " +
                         $"mergedCells={sheet.MergedCellCount}, freezePane={sheet.FreezePaneCell ?? "none"}, autoFilter={sheet.AutoFilterRange ?? "none"}, hyperlinks={sheet.HyperlinkCount}, " +
+                        $"printArea={sheet.PrintArea ?? "none"}, pageOrientation={sheet.PageOrientation ?? "none"}, " +
                         $"protected={(sheet.Protected ? "yes" : "no")}");
                     Console.WriteLine(new string('─', 50));
                     foreach (var row in sheet.Rows)
@@ -450,7 +451,9 @@ JSON Manifest Format:
       { ""type"": ""merge_cells"", ""sheet"": ""Data"", ""range"": ""B2:C2"" },
       { ""type"": ""set_freeze_panes"", ""sheet"": ""Data"", ""cell"": ""B2"" },
       { ""type"": ""set_auto_filter"", ""sheet"": ""Data"", ""range"": ""A1:D6"" },
-      { ""type"": ""set_hyperlink"", ""sheet"": ""Data"", ""cell"": ""A2"", ""url"": ""https://example.com/p001"" }
+      { ""type"": ""set_hyperlink"", ""sheet"": ""Data"", ""cell"": ""A2"", ""url"": ""https://example.com/p001"" },
+      { ""type"": ""set_print_area"", ""sheet"": ""Data"", ""range"": ""$A$1:$D$6"" },
+      { ""type"": ""set_page_orientation"", ""sheet"": ""Data"", ""orientation"": ""landscape"" }
     ],
     ""comments"": [
       { ""sheet"": ""Sheet1"", ""cell"": ""A1"", ""text"": ""Review note"" }

@@ -97,6 +97,9 @@ public class Change
     [JsonPropertyName("url")]
     public string? Url { get; set; }
 
+    [JsonPropertyName("orientation")]
+    public string? Orientation { get; set; }
+
     [JsonPropertyName("enabled")]
     public bool? Enabled { get; set; }
 
@@ -397,6 +400,12 @@ public class SheetData
 
     [JsonPropertyName("hyperlinks")]
     public List<HyperlinkInfo> Hyperlinks { get; set; } = new();
+
+    [JsonPropertyName("print_area")]
+    public string? PrintArea { get; set; }
+
+    [JsonPropertyName("page_orientation")]
+    public string? PageOrientation { get; set; }
 
     [JsonPropertyName("tables")]
     public List<TableInfo> Tables { get; set; } = new();

@@ -83,6 +83,8 @@ public class SpreadsheetEditor
             sheetData.AutoFilterRange = GetAutoFilterRange(sheetPart.WorksheetPart);
             sheetData.Hyperlinks = GetHyperlinks(sheetPart.WorksheetPart);
             sheetData.HyperlinkCount = sheetData.Hyperlinks.Count;
+            sheetData.PrintArea = GetPrintArea(workbookPart.Workbook, sheets, sheet);
+            sheetData.PageOrientation = GetPageOrientation(sheetPart.WorksheetPart);
             sheetData.Tables = GetTableInfos(sheetPart.WorksheetPart);
             sheetData.TableCount = sheetData.Tables.Count;
             sheetData.DataValidations = GetDataValidationInfos(sheetPart.WorksheetPart);
@@ -165,6 +167,8 @@ public class SpreadsheetEditor
                 AutoFilterRange = sheetData.AutoFilterRange,
                 HyperlinkCount = sheetData.HyperlinkCount,
                 Hyperlinks = sheetData.Hyperlinks,
+                PrintArea = sheetData.PrintArea,
+                PageOrientation = sheetData.PageOrientation,
                 Tables = sheetData.Tables,
                 DataValidations = sheetData.DataValidations,
                 ConditionalFormats = sheetData.ConditionalFormats,
@@ -488,6 +492,27 @@ public class SpreadsheetEditor
             .ToList() ?? new List<HyperlinkInfo>();
     }
 
+    private static string? GetPrintArea(Workbook workbook, List<Sheet> sheets, Sheet sheet)
+    {
+        uint sheetIndex = (uint)sheets.IndexOf(sheet);
+        return workbook.DefinedNames?
+            .Elements<DefinedName>()
+            .FirstOrDefault(name =>
+                string.Equals(name.Name?.Value, "_xlnm.Print_Area", StringComparison.Ordinal)
+                && name.LocalSheetId?.Value == sheetIndex)?
+            .Text;
+    }
+
+    private static string? GetPageOrientation(WorksheetPart worksheetPart)
+    {
+        var orientation = worksheetPart.Worksheet.GetFirstChild<PageSetup>()?.Orientation?.Value;
+        if (orientation == OrientationValues.Landscape)
+            return "landscape";
+        if (orientation == OrientationValues.Portrait)
+            return "portrait";
+        return null;
+    }
+
     internal static string GetSheetVisibility(Sheet sheet)
     {
         var state = sheet.State?.Value;
@@ -637,6 +662,10 @@ public class SpreadsheetEditor
             "clear_auto_filter" => !string.IsNullOrEmpty(c.Sheet),
             "set_hyperlink" => !string.IsNullOrEmpty(c.Sheet) && !string.IsNullOrEmpty(c.Cell) && !string.IsNullOrEmpty(c.Url),
             "clear_hyperlink" => !string.IsNullOrEmpty(c.Sheet) && !string.IsNullOrEmpty(c.Cell),
+            "set_print_area" => !string.IsNullOrEmpty(c.Sheet) && !string.IsNullOrEmpty(c.Range),
+            "clear_print_area" => !string.IsNullOrEmpty(c.Sheet),
+            "set_page_orientation" => !string.IsNullOrEmpty(c.Sheet) && IsValidPageOrientation(c.Orientation),
+            "clear_page_orientation" => !string.IsNullOrEmpty(c.Sheet),
             _ => false
         };
 
@@ -674,6 +703,10 @@ public class SpreadsheetEditor
         "clear_auto_filter" => $"Cleared auto filter on {c.Sheet}",
         "set_hyperlink" => $"Set hyperlink on {c.Sheet}!{c.Cell} → {c.Url}",
         "clear_hyperlink" => $"Cleared hyperlink on {c.Sheet}!{c.Cell}",
+        "set_print_area" => $"Set print area on {c.Sheet}!{c.Range}",
+        "clear_print_area" => $"Cleared print area on {c.Sheet}",
+        "set_page_orientation" => $"Set page orientation on {c.Sheet} to {NormalizePageOrientation(c.Orientation!)}",
+        "clear_page_orientation" => $"Cleared page orientation on {c.Sheet}",
         _ => $"Unknown change type: {c.Type}"
     };
 
@@ -747,6 +780,18 @@ public class SpreadsheetEditor
                 break;
             case "clear_hyperlink":
                 ClearHyperlink(workbookPart, c.Sheet!, c.Cell!);
+                break;
+            case "set_print_area":
+                SetPrintArea(workbookPart, c.Sheet!, c.Range!);
+                break;
+            case "clear_print_area":
+                ClearPrintArea(workbookPart, c.Sheet!);
+                break;
+            case "set_page_orientation":
+                SetPageOrientation(workbookPart, c.Sheet!, c.Orientation!);
+                break;
+            case "clear_page_orientation":
+                ClearPageOrientation(workbookPart, c.Sheet!);
                 break;
             default:
                 throw new Exception($"Unknown change type: {c.Type}");
@@ -1293,6 +1338,75 @@ public class SpreadsheetEditor
             hyperlinks.Remove();
     }
 
+    private void SetPrintArea(WorkbookPart workbookPart, string sheetName, string range)
+    {
+        string normalized = NormalizePrintArea(sheetName, range);
+        SetDefinedName(workbookPart, "_xlnm.Print_Area", normalized, sheetName, hidden: false, comment: null);
+    }
+
+    private void ClearPrintArea(WorkbookPart workbookPart, string sheetName)
+    {
+        DeleteDefinedName(workbookPart, "_xlnm.Print_Area", sheetName);
+    }
+
+    private void SetPageOrientation(WorkbookPart workbookPart, string sheetName, string orientation)
+    {
+        var worksheet = GetWorksheetPart(workbookPart, sheetName).Worksheet;
+        string normalized = NormalizePageOrientation(orientation);
+        var pageSetup = worksheet.GetFirstChild<PageSetup>();
+        if (pageSetup == null)
+        {
+            pageSetup = InsertWorksheetElementAfterPredecessors(
+                worksheet,
+                new PageSetup(),
+                typeof(PageMargins),
+                typeof(HeaderFooter),
+                typeof(RowBreaks),
+                typeof(ColumnBreaks),
+                typeof(CustomProperties),
+                typeof(CellWatches),
+                typeof(IgnoredErrors),
+                typeof(Drawing),
+                typeof(LegacyDrawing),
+                typeof(LegacyDrawingHeaderFooter),
+                typeof(Picture),
+                typeof(OleObjects),
+                typeof(Controls),
+                typeof(WebPublishItems),
+                typeof(TableParts),
+                typeof(ExtensionList),
+                typeof(Hyperlinks),
+                typeof(MergeCells),
+                typeof(ConditionalFormatting),
+                typeof(DataValidations),
+                typeof(CustomSheetViews),
+                typeof(DataConsolidate),
+                typeof(SortState),
+                typeof(AutoFilter),
+                typeof(Scenarios),
+                typeof(ProtectedRanges),
+                typeof(SheetProtection),
+                typeof(SheetCalculationProperties),
+                typeof(DocumentFormat.OpenXml.Spreadsheet.SheetData));
+        }
+
+        pageSetup.Orientation = normalized == "landscape"
+            ? OrientationValues.Landscape
+            : OrientationValues.Portrait;
+    }
+
+    private void ClearPageOrientation(WorkbookPart workbookPart, string sheetName)
+    {
+        var worksheet = GetWorksheetPart(workbookPart, sheetName).Worksheet;
+        var pageSetup = worksheet.GetFirstChild<PageSetup>();
+        if (pageSetup == null)
+            return;
+
+        pageSetup.Orientation = null;
+        if (!pageSetup.HasChildren && !pageSetup.HasAttributes)
+            pageSetup.Remove();
+    }
+
     // ── Comments (Legacy Notes) ──
 
     private void ApplyComment(WorkbookPart workbookPart, CommentDef commentDef)
@@ -1627,6 +1741,46 @@ public class SpreadsheetEditor
         };
     }
 
+    private static bool IsValidPageOrientation(string? orientation)
+    {
+        if (orientation == null)
+            return false;
+
+        string normalized = orientation.Trim().ToLowerInvariant();
+        return normalized == "portrait" || normalized == "landscape";
+    }
+
+    private static string NormalizePageOrientation(string orientation)
+    {
+        string normalized = orientation.Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "portrait" => "portrait",
+            "landscape" => "landscape",
+            _ => throw new Exception("Orientation must be one of: portrait, landscape")
+        };
+    }
+
+    private static string NormalizePrintArea(string sheetName, string range)
+    {
+        string trimmed = range.Trim();
+        if (trimmed.StartsWith("=", StringComparison.Ordinal))
+            trimmed = trimmed[1..];
+
+        if (trimmed.Contains('!'))
+            return trimmed;
+
+        return $"{QuoteSheetName(sheetName)}!{trimmed}";
+    }
+
+    private static string QuoteSheetName(string sheetName)
+    {
+        if (!sheetName.Any(ch => char.IsWhiteSpace(ch) || ch == '\'' || ch == '!' || ch == ','))
+            return sheetName;
+
+        return $"'{sheetName.Replace("'", "''", StringComparison.Ordinal)}'";
+    }
+
     private static uint GetSheetIndex(WorkbookPart workbookPart, string sheetName)
     {
         var sheets = workbookPart.Workbook.GetFirstChild<Sheets>()
@@ -1849,6 +2003,8 @@ internal class SheetData_Read
     public string? AutoFilterRange { get; set; }
     public int HyperlinkCount { get; set; }
     public List<HyperlinkInfo> Hyperlinks { get; set; } = new();
+    public string? PrintArea { get; set; }
+    public string? PageOrientation { get; set; }
     public List<TableInfo> Tables { get; set; } = new();
     public List<DataValidationInfo> DataValidations { get; set; } = new();
     public List<ConditionalFormatInfo> ConditionalFormats { get; set; } = new();

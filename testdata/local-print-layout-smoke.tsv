@@ -1,0 +1,7 @@
+# path	field	expected
+print-output.xlsx	sheet:Data.print_area	=Data!$A$1:$D$6
+print-output.xlsx	sheet:Data.page_orientation	=landscape
+print-created.xlsx	sheet:Data.print_area	=Data!$A$1:$D$6
+print-created.xlsx	sheet:Data.page_orientation	=landscape
+print-reset.xlsx	sheet:Data.print_area	=null
+print-reset.xlsx	sheet:Data.page_orientation	=null

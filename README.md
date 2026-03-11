@@ -80,6 +80,9 @@ xlsx-review input.xlsx examples/sample-worksheet-ux-edits.json -o ux.xlsx
 # Add a hyperlink
 xlsx-review input.xlsx examples/sample-hyperlink-edits.json -o linked.xlsx
 
+# Configure print layout
+xlsx-review input.xlsx examples/sample-print-layout-edits.json -o printable.xlsx
+
 # Read spreadsheet (human-readable)
 xlsx-review input.xlsx --read
 
@@ -145,6 +148,10 @@ that there is no input workbook when you pass `--create`.
 | `clear_auto_filter` | `sheet` | Remove worksheet auto-filter state |
 | `set_hyperlink` | `sheet`, `cell`, `url` | Add or replace an external hyperlink on a cell |
 | `clear_hyperlink` | `sheet`, `cell` | Remove a hyperlink from a cell |
+| `set_print_area` | `sheet`, `range` | Set the worksheet print area using an A1 range |
+| `clear_print_area` | `sheet` | Remove the worksheet print area |
+| `set_page_orientation` | `sheet`, `orientation` | Set page orientation to `portrait` or `landscape` |
+| `clear_page_orientation` | `sheet` | Clear explicit page orientation |
 
 ## Create Mode
 
@@ -179,6 +186,8 @@ The current worksheet UX tranche covers:
 - freeze panes
 - auto-filter state
 - hyperlinks
+- print area
+- page orientation
 
 See [docs/advanced-features-roadmap.md](/Users/ernie/Documents/irl_projects/xlsx-review/docs/advanced-features-roadmap.md) for the phased plan covering the rest of worksheet UX, tables, validations, conditional formats, richer formula handling, charts, pivots, and connected-workbook features.
 
