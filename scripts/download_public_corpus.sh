@@ -25,9 +25,11 @@ copy_repo_files() {
   local sparse_path="$3"
   local license_id="$4"
   local repo_dir="${TMP_DIR}/${source_name}"
+  local source_output_dir="${FILES_DIR}/${source_name}"
 
   echo "==> Cloning ${repo_url}"
   git clone --depth 1 --filter=blob:none --sparse "${repo_url}" "${repo_dir}" >/dev/null
+  rm -rf "${source_output_dir}"
   (
     cd "${repo_dir}"
     git sparse-checkout set "${sparse_path}" >/dev/null
