@@ -157,7 +157,7 @@ The current advanced edit tranche covers:
 - workbook protection
 - sheet protection
 
-See [docs/advanced-features-roadmap.md](/Users/ernie/Documents/irl_projects/xlsx-review/docs/advanced-features-roadmap.md) for the phased plan covering metadata diff parity, tables, validations, conditional formats, richer formula handling, charts, pivots, and connected-workbook features.
+See [docs/advanced-features-roadmap.md](/Users/ernie/Documents/irl_projects/xlsx-review/docs/advanced-features-roadmap.md) for the phased plan covering richer worksheet UX features, tables, validations, conditional formats, richer formula handling, charts, pivots, and connected-workbook features.
 
 ### Comment Format
 
@@ -170,7 +170,7 @@ Comments are added as legacy Notes for maximum compatibility across Excel versio
 
 ## Semantic Diff & Git Integration
 
-Compare two `.xlsx` files semantically — detects cell value and formula changes, structural differences (added/removed sheets, rows, columns), and comment modifications.
+Compare two `.xlsx` files semantically — detects cell value and formula changes, structural differences (added/removed sheets, rows, columns), and workbook metadata changes such as sheet visibility, defined names, and protection state.
 
 ### Quick Start
 
@@ -215,6 +215,7 @@ Now `git diff` shows readable text diffs for Excel files.
 | **Formulas** | Formula changes distinguished from value changes |
 | **Sheet structure** | Added or removed worksheets (matched by name) |
 | **Row/column counts** | Dimension changes within sheets |
+| **Workbook metadata** | Sheet visibility, defined names, worksheet protection, and workbook protection changes |
 | **Comments** | Added, removed, or modified cell comments |
 
 ## CLI Flags

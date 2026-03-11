@@ -25,6 +25,9 @@ public class XlsxDiffResult
     [JsonPropertyName("structure_diff")]
     public StructureDiff StructureDiff { get; set; } = new();
 
+    [JsonPropertyName("metadata_diff")]
+    public MetadataDiff MetadataDiff { get; set; } = new();
+
     [JsonPropertyName("summary")]
     public XlsxDiffSummary Summary { get; set; } = new();
 }
@@ -103,6 +106,21 @@ public class StructureDiff
     public List<SheetStructureChange> SheetChanges { get; set; } = new();
 }
 
+public class MetadataDiff
+{
+    [JsonPropertyName("sheet_visibility_changes")]
+    public List<SheetVisibilityChange> SheetVisibilityChanges { get; set; } = new();
+
+    [JsonPropertyName("sheet_protection_changes")]
+    public List<SheetProtectionChange> SheetProtectionChanges { get; set; } = new();
+
+    [JsonPropertyName("defined_name_changes")]
+    public List<DefinedNameChange> DefinedNameChanges { get; set; } = new();
+
+    [JsonPropertyName("workbook_protection_change")]
+    public WorkbookProtectionChange WorkbookProtectionChange { get; set; } = new();
+}
+
 public class SheetStructureChange
 {
     [JsonPropertyName("sheet")]
@@ -119,6 +137,72 @@ public class SheetStructureChange
 
     [JsonPropertyName("new_columns")]
     public int NewColumns { get; set; }
+}
+
+public class SheetVisibilityChange
+{
+    [JsonPropertyName("sheet")]
+    public string Sheet { get; set; } = "";
+
+    [JsonPropertyName("old_visibility")]
+    public string OldVisibility { get; set; } = "visible";
+
+    [JsonPropertyName("new_visibility")]
+    public string NewVisibility { get; set; } = "visible";
+}
+
+public class SheetProtectionChange
+{
+    [JsonPropertyName("sheet")]
+    public string Sheet { get; set; } = "";
+
+    [JsonPropertyName("old_protected")]
+    public bool OldProtected { get; set; }
+
+    [JsonPropertyName("new_protected")]
+    public bool NewProtected { get; set; }
+}
+
+public class DefinedNameChange
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("scope_sheet")]
+    public string? ScopeSheet { get; set; }
+
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "";
+
+    [JsonPropertyName("old_refers_to")]
+    public string? OldRefersTo { get; set; }
+
+    [JsonPropertyName("new_refers_to")]
+    public string? NewRefersTo { get; set; }
+
+    [JsonPropertyName("old_hidden")]
+    public bool? OldHidden { get; set; }
+
+    [JsonPropertyName("new_hidden")]
+    public bool? NewHidden { get; set; }
+
+    [JsonPropertyName("old_comment")]
+    public string? OldComment { get; set; }
+
+    [JsonPropertyName("new_comment")]
+    public string? NewComment { get; set; }
+}
+
+public class WorkbookProtectionChange
+{
+    [JsonPropertyName("changed")]
+    public bool Changed { get; set; }
+
+    [JsonPropertyName("old")]
+    public WorkbookProtectionInfo Old { get; set; } = new();
+
+    [JsonPropertyName("new")]
+    public WorkbookProtectionInfo New { get; set; } = new();
 }
 
 // ── Summary ────────────────────────────────────────────────────
@@ -151,6 +235,21 @@ public class XlsxDiffSummary
 
     [JsonPropertyName("structure_changes")]
     public int StructureChanges { get; set; }
+
+    [JsonPropertyName("sheet_visibility_changes")]
+    public int SheetVisibilityChanges { get; set; }
+
+    [JsonPropertyName("sheet_protection_changes")]
+    public int SheetProtectionChanges { get; set; }
+
+    [JsonPropertyName("defined_name_changes")]
+    public int DefinedNameChanges { get; set; }
+
+    [JsonPropertyName("workbook_protection_changes")]
+    public int WorkbookProtectionChanges { get; set; }
+
+    [JsonPropertyName("metadata_changes")]
+    public int MetadataChanges { get; set; }
 
     [JsonPropertyName("identical")]
     public bool Identical { get; set; }

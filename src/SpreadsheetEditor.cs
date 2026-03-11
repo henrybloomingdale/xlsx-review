@@ -270,7 +270,7 @@ public class SpreadsheetEditor
         return "normal";
     }
 
-    private static WorkbookProtectionInfo BuildWorkbookProtection(WorkbookProtection? protection)
+    internal static WorkbookProtectionInfo BuildWorkbookProtection(WorkbookProtection? protection)
     {
         if (protection == null)
             return new WorkbookProtectionInfo();
@@ -288,7 +288,7 @@ public class SpreadsheetEditor
         };
     }
 
-    private static List<DefinedNameInfo> BuildDefinedNames(Workbook workbook, List<Sheet> sheets)
+    internal static List<DefinedNameInfo> BuildDefinedNames(Workbook workbook, List<Sheet> sheets)
     {
         return workbook.DefinedNames?.Elements<DefinedName>()
             .Select(name =>
@@ -360,7 +360,7 @@ public class SpreadsheetEditor
             .Count();
     }
 
-    private static bool IsSheetProtected(WorksheetPart worksheetPart)
+    internal static bool IsSheetProtected(WorksheetPart worksheetPart)
     {
         return worksheetPart.Worksheet.GetFirstChild<SheetProtection>() != null;
     }
@@ -421,7 +421,7 @@ public class SpreadsheetEditor
             .ToList();
     }
 
-    private static string GetSheetVisibility(Sheet sheet)
+    internal static string GetSheetVisibility(Sheet sheet)
     {
         var state = sheet.State?.Value;
         if (state == SheetStateValues.Hidden) return "hidden";

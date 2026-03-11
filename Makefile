@@ -153,6 +153,12 @@ test-advanced: build-release
 	@echo "Testing advanced workbook metadata cleanup..."
 	@$(LOCAL_RUNNER) $(BUILD_DIR)/advanced-output.xlsx examples/sample-advanced-cleanup.json -o $(BUILD_DIR)/advanced-reset.xlsx --json > $(BUILD_DIR)/test-advanced-reset.json
 	@grep -q '"success": true' $(BUILD_DIR)/test-advanced-reset.json
+	@echo "Testing advanced workbook metadata diff..."
+	@$(LOCAL_RUNNER) --diff examples/test_old.xlsx $(BUILD_DIR)/advanced-output.xlsx --json > $(BUILD_DIR)/test-advanced-diff.json
+	@ruby -rjson -e 'j = JSON.parse(File.read("$(BUILD_DIR)/test-advanced-diff.json")); s = j.fetch("summary"); abort("metadata summary") unless s["metadata_changes"] == 5 && s["defined_name_changes"] == 2 && s["sheet_visibility_changes"] == 1 && s["sheet_protection_changes"] == 1 && s["workbook_protection_changes"] == 1; abort("visibility diff") unless j.dig("metadata_diff", "sheet_visibility_changes", 0, "sheet") == "Summary"; abort("workbook protection diff") unless j.dig("metadata_diff", "workbook_protection_change", "changed") == true'
+	@echo "Testing advanced workbook metadata reset diff..."
+	@$(LOCAL_RUNNER) --diff examples/test_old.xlsx $(BUILD_DIR)/advanced-reset.xlsx --json > $(BUILD_DIR)/test-advanced-reset-diff.json
+	@ruby -rjson -e 'j = JSON.parse(File.read("$(BUILD_DIR)/test-advanced-reset-diff.json")); abort("reset should be identical") unless j.dig("summary", "identical") == true'
 	@./scripts/run_feature_smoke.sh --binary $(LOCAL_RUNNER) --root $(BUILD_DIR) --suite testdata/local-feature-smoke.tsv
 	@ls -lh $(BUILD_DIR)/advanced-output.xlsx $(BUILD_DIR)/advanced-created.xlsx $(BUILD_DIR)/advanced-reset.xlsx
 	@echo "✅ Advanced feature tests passed"

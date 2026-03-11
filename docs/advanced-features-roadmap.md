@@ -36,7 +36,7 @@ Already readable, but not fully editable/diffable across the board:
 
 ### Phase 1: Workbook Metadata Control
 
-Status: in progress
+Status: shipped
 
 Deliverables:
 
@@ -52,6 +52,8 @@ Reason:
 These features already exist in read mode, are high-value in real workbooks, and do not require complex drawing, pivot, or style graph manipulation.
 
 ### Phase 2: Metadata Diff Parity
+
+Status: shipped
 
 Deliverables:
 

@@ -56,7 +56,30 @@ public static class SpreadsheetDiffer
                     NewColumns = newSheet.MaxColumn
                 });
             }
+
+            if (oldSheet.Visibility != newSheet.Visibility)
+            {
+                result.MetadataDiff.SheetVisibilityChanges.Add(new SheetVisibilityChange
+                {
+                    Sheet = sheetName,
+                    OldVisibility = oldSheet.Visibility,
+                    NewVisibility = newSheet.Visibility
+                });
+            }
+
+            if (oldSheet.Protected != newSheet.Protected)
+            {
+                result.MetadataDiff.SheetProtectionChanges.Add(new SheetProtectionChange
+                {
+                    Sheet = sheetName,
+                    OldProtected = oldSheet.Protected,
+                    NewProtected = newSheet.Protected
+                });
+            }
         }
+
+        result.MetadataDiff.DefinedNameChanges = DiffDefinedNames(oldDoc.DefinedNames, newDoc.DefinedNames);
+        result.MetadataDiff.WorkbookProtectionChange = DiffWorkbookProtection(oldDoc.WorkbookProtection, newDoc.WorkbookProtection);
 
         // Build summary
         int totalCellsAdded = result.CellChanges.Sum(sc => sc.Changes.Count(c => c.Type == "added"));
@@ -65,6 +88,11 @@ public static class SpreadsheetDiffer
         int totalFormulasAdded = result.FormulaChanges.Sum(sf => sf.Changes.Count(f => f.Type == "added"));
         int totalFormulasDeleted = result.FormulaChanges.Sum(sf => sf.Changes.Count(f => f.Type == "deleted"));
         int totalFormulasModified = result.FormulaChanges.Sum(sf => sf.Changes.Count(f => f.Type == "modified"));
+        int sheetVisibilityChanges = result.MetadataDiff.SheetVisibilityChanges.Count;
+        int sheetProtectionChanges = result.MetadataDiff.SheetProtectionChanges.Count;
+        int definedNameChanges = result.MetadataDiff.DefinedNameChanges.Count;
+        int workbookProtectionChanges = result.MetadataDiff.WorkbookProtectionChange.Changed ? 1 : 0;
+        int metadataChanges = sheetVisibilityChanges + sheetProtectionChanges + definedNameChanges + workbookProtectionChanges;
 
         result.Summary = new XlsxDiffSummary
         {
@@ -77,11 +105,17 @@ public static class SpreadsheetDiffer
             FormulasDeleted = totalFormulasDeleted,
             FormulasModified = totalFormulasModified,
             StructureChanges = result.StructureDiff.SheetChanges.Count,
+            SheetVisibilityChanges = sheetVisibilityChanges,
+            SheetProtectionChanges = sheetProtectionChanges,
+            DefinedNameChanges = definedNameChanges,
+            WorkbookProtectionChanges = workbookProtectionChanges,
+            MetadataChanges = metadataChanges,
             Identical = result.SheetsDiff.Added.Count == 0
                      && result.SheetsDiff.Deleted.Count == 0
                      && totalCellsAdded == 0 && totalCellsDeleted == 0 && totalCellsModified == 0
                      && totalFormulasAdded == 0 && totalFormulasDeleted == 0 && totalFormulasModified == 0
                      && result.StructureDiff.SheetChanges.Count == 0
+                     && metadataChanges == 0
         };
 
         return result;
@@ -206,6 +240,97 @@ public static class SpreadsheetDiffer
         return changes;
     }
 
+    private static List<DefinedNameChange> DiffDefinedNames(
+        List<DefinedNameInfo> oldNames,
+        List<DefinedNameInfo> newNames)
+    {
+        var changes = new List<DefinedNameChange>();
+        var oldMap = oldNames
+            .GroupBy(BuildDefinedNameKey, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
+        var newMap = newNames
+            .GroupBy(BuildDefinedNameKey, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Last(), StringComparer.Ordinal);
+
+        var allKeys = new HashSet<string>(oldMap.Keys);
+        allKeys.UnionWith(newMap.Keys);
+
+        foreach (var key in allKeys.OrderBy(x => x, StringComparer.Ordinal))
+        {
+            bool inOld = oldMap.TryGetValue(key, out var oldName);
+            bool inNew = newMap.TryGetValue(key, out var newName);
+
+            if (inOld && inNew)
+            {
+                if (oldName!.RefersTo != newName!.RefersTo
+                    || oldName.Hidden != newName.Hidden
+                    || oldName.Comment != newName.Comment)
+                {
+                    changes.Add(new DefinedNameChange
+                    {
+                        Name = newName.Name,
+                        ScopeSheet = newName.ScopeSheet,
+                        Type = "modified",
+                        OldRefersTo = oldName.RefersTo,
+                        NewRefersTo = newName.RefersTo,
+                        OldHidden = oldName.Hidden,
+                        NewHidden = newName.Hidden,
+                        OldComment = oldName.Comment,
+                        NewComment = newName.Comment
+                    });
+                }
+            }
+            else if (inOld)
+            {
+                changes.Add(new DefinedNameChange
+                {
+                    Name = oldName!.Name,
+                    ScopeSheet = oldName.ScopeSheet,
+                    Type = "deleted",
+                    OldRefersTo = oldName.RefersTo,
+                    OldHidden = oldName.Hidden,
+                    OldComment = oldName.Comment
+                });
+            }
+            else if (inNew)
+            {
+                changes.Add(new DefinedNameChange
+                {
+                    Name = newName!.Name,
+                    ScopeSheet = newName.ScopeSheet,
+                    Type = "added",
+                    NewRefersTo = newName.RefersTo,
+                    NewHidden = newName.Hidden,
+                    NewComment = newName.Comment
+                });
+            }
+        }
+
+        return changes;
+    }
+
+    private static WorkbookProtectionChange DiffWorkbookProtection(
+        WorkbookProtectionInfo oldProtection,
+        WorkbookProtectionInfo newProtection)
+    {
+        bool changed = oldProtection.Enabled != newProtection.Enabled
+            || oldProtection.LockStructure != newProtection.LockStructure
+            || oldProtection.LockWindows != newProtection.LockWindows
+            || oldProtection.LockRevision != newProtection.LockRevision;
+
+        return new WorkbookProtectionChange
+        {
+            Changed = changed,
+            Old = oldProtection,
+            New = newProtection
+        };
+    }
+
+    private static string BuildDefinedNameKey(DefinedNameInfo name)
+    {
+        return $"{name.ScopeSheet ?? ""}\u001f{name.Name}";
+    }
+
     /// <summary>
     /// Produce a sortable key from a cell reference (e.g., "A1" → (1,1), "B10" → (10,2)).
     /// Sorts by row first, then column.
@@ -309,6 +434,59 @@ public static class SpreadsheetDiffer
             }
         }
 
+        if (result.MetadataDiff.SheetVisibilityChanges.Count > 0)
+        {
+            Console.WriteLine("\nSheet Visibility Changes");
+            Console.WriteLine(new string('─', 40));
+            foreach (var change in result.MetadataDiff.SheetVisibilityChanges)
+                Console.WriteLine($"  {change.Sheet}: {change.OldVisibility} → {change.NewVisibility}");
+        }
+
+        if (result.MetadataDiff.SheetProtectionChanges.Count > 0)
+        {
+            Console.WriteLine("\nSheet Protection Changes");
+            Console.WriteLine(new string('─', 40));
+            foreach (var change in result.MetadataDiff.SheetProtectionChanges)
+                Console.WriteLine($"  {change.Sheet}: {change.OldProtected} → {change.NewProtected}");
+        }
+
+        if (result.MetadataDiff.DefinedNameChanges.Count > 0)
+        {
+            Console.WriteLine("\nDefined Name Changes");
+            Console.WriteLine(new string('─', 40));
+            foreach (var change in result.MetadataDiff.DefinedNameChanges)
+            {
+                string scopedName = string.IsNullOrEmpty(change.ScopeSheet)
+                    ? change.Name
+                    : $"{change.ScopeSheet}!{change.Name}";
+
+                switch (change.Type)
+                {
+                    case "modified":
+                        Console.WriteLine($"  ~ {scopedName}: {change.OldRefersTo} → {change.NewRefersTo}");
+                        break;
+                    case "added":
+                        Console.WriteLine($"  + {scopedName}: {change.NewRefersTo}");
+                        break;
+                    case "deleted":
+                        Console.WriteLine($"  - {scopedName}: {change.OldRefersTo}");
+                        break;
+                }
+            }
+        }
+
+        if (result.MetadataDiff.WorkbookProtectionChange.Changed)
+        {
+            var protectionChange = result.MetadataDiff.WorkbookProtectionChange;
+            Console.WriteLine("\nWorkbook Protection Changes");
+            Console.WriteLine(new string('─', 40));
+            Console.WriteLine(
+                $"  protected {protectionChange.Old.Enabled} → {protectionChange.New.Enabled}, " +
+                $"lockStructure {protectionChange.Old.LockStructure} → {protectionChange.New.LockStructure}, " +
+                $"lockWindows {protectionChange.Old.LockWindows} → {protectionChange.New.LockWindows}, " +
+                $"lockRevision {protectionChange.Old.LockRevision} → {protectionChange.New.LockRevision}");
+        }
+
         // Summary
         Console.WriteLine($"\nSummary: {result.Summary.SheetsAdded} sheets added, "
             + $"{result.Summary.SheetsDeleted} deleted, "
@@ -318,7 +496,8 @@ public static class SpreadsheetDiffer
             + $"{result.Summary.FormulasModified} formulas modified, "
             + $"{result.Summary.FormulasAdded} added, "
             + $"{result.Summary.FormulasDeleted} deleted, "
-            + $"{result.Summary.StructureChanges} structure changes");
+            + $"{result.Summary.StructureChanges} structure changes, "
+            + $"{result.Summary.MetadataChanges} metadata changes");
         Console.WriteLine();
     }
 

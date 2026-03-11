@@ -15,12 +15,16 @@ namespace XlsxReview;
 public class SpreadsheetExtraction
 {
     public string FileName { get; set; } = "";
+    public WorkbookProtectionInfo WorkbookProtection { get; set; } = new();
+    public List<DefinedNameInfo> DefinedNames { get; set; } = new();
     public List<ExtractedSheet> Sheets { get; set; } = new();
 }
 
 public class ExtractedSheet
 {
     public string Name { get; set; } = "";
+    public string Visibility { get; set; } = "visible";
+    public bool Protected { get; set; }
     public int MaxRow { get; set; }
     public int MaxColumn { get; set; }
     public Dictionary<string, ExtractedCell> Cells { get; set; } = new();
@@ -59,8 +63,10 @@ public static class SpreadsheetExtractor
         var workbookPart = doc.WorkbookPart
             ?? throw new Exception("Invalid spreadsheet: no workbook part");
 
-        var sheets = workbookPart.Workbook.Sheets?.Elements<Sheet>() ?? Enumerable.Empty<Sheet>();
+        var sheets = workbookPart.Workbook.Sheets?.Elements<Sheet>().ToList() ?? new List<Sheet>();
         var sharedStrings = workbookPart.SharedStringTablePart?.SharedStringTable;
+        result.WorkbookProtection = SpreadsheetEditor.BuildWorkbookProtection(workbookPart.Workbook.WorkbookProtection);
+        result.DefinedNames = SpreadsheetEditor.BuildDefinedNames(workbookPart.Workbook, sheets);
 
         // Build number format map from stylesheet
         var numberFormats = BuildNumberFormatMap(workbookPart);
@@ -69,11 +75,17 @@ public static class SpreadsheetExtractor
         {
             var extracted = new ExtractedSheet
             {
-                Name = sheet.Name?.Value ?? "Unnamed"
+                Name = sheet.Name?.Value ?? "Unnamed",
+                Visibility = SpreadsheetEditor.GetSheetVisibility(sheet)
             };
 
             var worksheetPart = TryGetWorksheetPart(workbookPart, sheet);
-            if (worksheetPart == null) continue;
+            if (worksheetPart == null)
+            {
+                result.Sheets.Add(extracted);
+                continue;
+            }
+            extracted.Protected = SpreadsheetEditor.IsSheetProtected(worksheetPart);
 
             var rows = worksheetPart.Worksheet.Descendants<Row>();
             int maxRow = 0;
