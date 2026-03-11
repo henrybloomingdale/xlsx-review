@@ -1,0 +1,20 @@
+{
+  "author": "Dr. Smith",
+  "changes": [
+    {
+      "type": "merge_cells",
+      "sheet": "Data",
+      "range": "B2:C2"
+    },
+    {
+      "type": "set_freeze_panes",
+      "sheet": "Data",
+      "cell": "B2"
+    },
+    {
+      "type": "set_auto_filter",
+      "sheet": "Data",
+      "range": "A1:D6"
+    }
+  ]
+}

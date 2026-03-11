@@ -77,6 +77,10 @@ public class SpreadsheetEditor
             sheetData.CommentCount = GetCommentCount(sheetPart.WorksheetPart);
             sheetData.ThreadedCommentCount = GetThreadedCommentCount(sheetPart.WorksheetPart);
             sheetData.Protected = IsSheetProtected(sheetPart.WorksheetPart);
+            sheetData.MergedRanges = GetMergedRanges(sheetPart.WorksheetPart);
+            sheetData.MergedCellCount = sheetData.MergedRanges.Count;
+            sheetData.FreezePaneCell = GetFreezePaneCell(sheetPart.WorksheetPart);
+            sheetData.AutoFilterRange = GetAutoFilterRange(sheetPart.WorksheetPart);
             sheetData.Tables = GetTableInfos(sheetPart.WorksheetPart);
             sheetData.TableCount = sheetData.Tables.Count;
             sheetData.DataValidations = GetDataValidationInfos(sheetPart.WorksheetPart);
@@ -153,6 +157,10 @@ public class SpreadsheetEditor
                 ConditionalFormatCount = sheetData.ConditionalFormatCount,
                 PivotTableCount = sheetData.PivotTableCount,
                 Protected = sheetData.Protected,
+                MergedCellCount = sheetData.MergedCellCount,
+                MergedRanges = sheetData.MergedRanges,
+                FreezePaneCell = sheetData.FreezePaneCell,
+                AutoFilterRange = sheetData.AutoFilterRange,
                 Tables = sheetData.Tables,
                 DataValidations = sheetData.DataValidations,
                 ConditionalFormats = sheetData.ConditionalFormats,
@@ -421,6 +429,31 @@ public class SpreadsheetEditor
             .ToList();
     }
 
+    private static List<string> GetMergedRanges(WorksheetPart worksheetPart)
+    {
+        return worksheetPart.Worksheet.Elements<MergeCells>()
+            .SelectMany(x => x.Elements<MergeCell>())
+            .Select(x => x.Reference?.Value)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Cast<string>()
+            .ToList();
+    }
+
+    private static string? GetFreezePaneCell(WorksheetPart worksheetPart)
+    {
+        return worksheetPart.Worksheet.GetFirstChild<SheetViews>()?
+            .Elements<SheetView>()
+            .Select(view => view.GetFirstChild<Pane>())
+            .Where(pane => pane?.State?.Value == PaneStateValues.Frozen || pane?.State?.Value == PaneStateValues.FrozenSplit)
+            .Select(pane => pane?.TopLeftCell?.Value)
+            .FirstOrDefault(cell => !string.IsNullOrWhiteSpace(cell));
+    }
+
+    private static string? GetAutoFilterRange(WorksheetPart worksheetPart)
+    {
+        return worksheetPart.Worksheet.GetFirstChild<AutoFilter>()?.Reference?.Value;
+    }
+
     internal static string GetSheetVisibility(Sheet sheet)
     {
         var state = sheet.State?.Value;
@@ -562,6 +595,12 @@ public class SpreadsheetEditor
             "delete_defined_name" => !string.IsNullOrEmpty(c.Name),
             "set_workbook_protection" => c.Enabled != null || c.LockStructure != null || c.LockWindows != null || c.LockRevision != null,
             "set_sheet_protection" => !string.IsNullOrEmpty(c.Sheet) && c.Enabled != null,
+            "merge_cells" => !string.IsNullOrEmpty(c.Sheet) && !string.IsNullOrEmpty(c.Range),
+            "unmerge_cells" => !string.IsNullOrEmpty(c.Sheet) && !string.IsNullOrEmpty(c.Range),
+            "set_freeze_panes" => !string.IsNullOrEmpty(c.Sheet) && !string.IsNullOrEmpty(c.Cell),
+            "clear_freeze_panes" => !string.IsNullOrEmpty(c.Sheet),
+            "set_auto_filter" => !string.IsNullOrEmpty(c.Sheet) && !string.IsNullOrEmpty(c.Range),
+            "clear_auto_filter" => !string.IsNullOrEmpty(c.Sheet),
             _ => false
         };
 
@@ -591,6 +630,12 @@ public class SpreadsheetEditor
         "delete_defined_name" => $"Deleted defined name \"{c.Name}\"" + (string.IsNullOrEmpty(c.ScopeSheet) ? "" : $" (scope: {c.ScopeSheet})"),
         "set_workbook_protection" => DescribeWorkbookProtectionChange(c),
         "set_sheet_protection" => $"Set sheet protection on {c.Sheet} to {(c.Enabled == true ? "enabled" : "disabled")}",
+        "merge_cells" => $"Merged {c.Sheet}!{c.Range}",
+        "unmerge_cells" => $"Unmerged {c.Sheet}!{c.Range}",
+        "set_freeze_panes" => $"Set freeze panes on {c.Sheet} at {c.Cell}",
+        "clear_freeze_panes" => $"Cleared freeze panes on {c.Sheet}",
+        "set_auto_filter" => $"Set auto filter on {c.Sheet}!{c.Range}",
+        "clear_auto_filter" => $"Cleared auto filter on {c.Sheet}",
         _ => $"Unknown change type: {c.Type}"
     };
 
@@ -640,6 +685,24 @@ public class SpreadsheetEditor
                 break;
             case "set_sheet_protection":
                 SetSheetProtection(workbookPart, c.Sheet!, c.Enabled!.Value);
+                break;
+            case "merge_cells":
+                MergeCells(workbookPart, c.Sheet!, c.Range!);
+                break;
+            case "unmerge_cells":
+                UnmergeCells(workbookPart, c.Sheet!, c.Range!);
+                break;
+            case "set_freeze_panes":
+                SetFreezePanes(workbookPart, c.Sheet!, c.Cell!);
+                break;
+            case "clear_freeze_panes":
+                ClearFreezePanes(workbookPart, c.Sheet!);
+                break;
+            case "set_auto_filter":
+                SetAutoFilter(workbookPart, c.Sheet!, c.Range!);
+                break;
+            case "clear_auto_filter":
+                ClearAutoFilter(workbookPart, c.Sheet!);
                 break;
             default:
                 throw new Exception($"Unknown change type: {c.Type}");
@@ -1005,6 +1068,123 @@ public class SpreadsheetEditor
         protection.Sheet = true;
     }
 
+    private void MergeCells(WorkbookPart workbookPart, string sheetName, string range)
+    {
+        var worksheet = GetWorksheetPart(workbookPart, sheetName).Worksheet;
+        var mergedCells = worksheet.GetFirstChild<MergeCells>();
+
+        if (mergedCells == null)
+        {
+            mergedCells = InsertWorksheetElementAfterPredecessors(
+                worksheet,
+                new MergeCells(),
+                typeof(CustomSheetViews),
+                typeof(DataConsolidate),
+                typeof(SortState),
+                typeof(AutoFilter),
+                typeof(Scenarios),
+                typeof(ProtectedRanges),
+                typeof(SheetProtection),
+                typeof(SheetCalculationProperties),
+                typeof(DocumentFormat.OpenXml.Spreadsheet.SheetData));
+        }
+
+        if (mergedCells.Elements<MergeCell>().Any(x => x.Reference?.Value == range))
+            return;
+
+        mergedCells.AppendChild(new MergeCell { Reference = range });
+        mergedCells.Count = (uint)mergedCells.Elements<MergeCell>().Count();
+    }
+
+    private void UnmergeCells(WorkbookPart workbookPart, string sheetName, string range)
+    {
+        var worksheet = GetWorksheetPart(workbookPart, sheetName).Worksheet;
+        var mergedCells = worksheet.GetFirstChild<MergeCells>()
+            ?? throw new Exception($"Sheet '{sheetName}' has no merged cells");
+
+        var mergeCell = mergedCells.Elements<MergeCell>()
+            .FirstOrDefault(x => x.Reference?.Value == range)
+            ?? throw new Exception($"Merged range '{range}' not found on sheet '{sheetName}'");
+
+        mergeCell.Remove();
+
+        if (!mergedCells.Elements<MergeCell>().Any())
+            mergedCells.Remove();
+        else
+            mergedCells.Count = (uint)mergedCells.Elements<MergeCell>().Count();
+    }
+
+    private void SetFreezePanes(WorkbookPart workbookPart, string sheetName, string cellRef)
+    {
+        var worksheet = GetWorksheetPart(workbookPart, sheetName).Worksheet;
+        var (colName, rowIndex) = ParseCellReference(cellRef);
+        int colIndex = ColumnNameToIndex(colName);
+
+        double xSplit = Math.Max(0, colIndex - 1);
+        double ySplit = Math.Max(0, rowIndex - 1);
+
+        if (xSplit == 0 && ySplit == 0)
+        {
+            ClearFreezePanes(workbookPart, sheetName);
+            return;
+        }
+
+        var sheetViews = GetOrCreateSheetViews(worksheet);
+        var sheetView = sheetViews.Elements<SheetView>().FirstOrDefault();
+        if (sheetView == null)
+        {
+            sheetView = new SheetView { WorkbookViewId = 0U };
+            sheetViews.AppendChild(sheetView);
+        }
+
+        var pane = sheetView.GetFirstChild<Pane>();
+        if (pane == null)
+        {
+            pane = new Pane();
+            sheetView.PrependChild(pane);
+        }
+
+        pane.State = PaneStateValues.Frozen;
+        pane.TopLeftCell = cellRef;
+        pane.HorizontalSplit = xSplit > 0 ? xSplit : null;
+        pane.VerticalSplit = ySplit > 0 ? ySplit : null;
+    }
+
+    private void ClearFreezePanes(WorkbookPart workbookPart, string sheetName)
+    {
+        var worksheet = GetWorksheetPart(workbookPart, sheetName).Worksheet;
+        worksheet.GetFirstChild<SheetViews>()?
+            .Elements<SheetView>()
+            .FirstOrDefault()?
+            .GetFirstChild<Pane>()?
+            .Remove();
+    }
+
+    private void SetAutoFilter(WorkbookPart workbookPart, string sheetName, string range)
+    {
+        var worksheet = GetWorksheetPart(workbookPart, sheetName).Worksheet;
+        var autoFilter = worksheet.GetFirstChild<AutoFilter>();
+        if (autoFilter == null)
+        {
+            autoFilter = InsertWorksheetElementAfterPredecessors(
+                worksheet,
+                new AutoFilter(),
+                typeof(Scenarios),
+                typeof(ProtectedRanges),
+                typeof(SheetProtection),
+                typeof(SheetCalculationProperties),
+                typeof(DocumentFormat.OpenXml.Spreadsheet.SheetData));
+        }
+
+        autoFilter.Reference = range;
+    }
+
+    private void ClearAutoFilter(WorkbookPart workbookPart, string sheetName)
+    {
+        var worksheet = GetWorksheetPart(workbookPart, sheetName).Worksheet;
+        worksheet.GetFirstChild<AutoFilter>()?.Remove();
+    }
+
     // ── Comments (Legacy Notes) ──
 
     private void ApplyComment(WorkbookPart workbookPart, CommentDef commentDef)
@@ -1227,6 +1407,52 @@ public class SpreadsheetEditor
     }
 
     // ── Helpers ──
+
+    private static T InsertWorksheetElementAfterPredecessors<T>(
+        Worksheet worksheet,
+        T element,
+        params Type[] predecessorTypes) where T : OpenXmlElement
+    {
+        var anchor = worksheet.Elements()
+            .LastOrDefault(existing => predecessorTypes.Any(type => type.IsAssignableFrom(existing.GetType())));
+
+        if (anchor != null)
+            worksheet.InsertAfter(element, anchor);
+        else
+            worksheet.PrependChild(element);
+
+        return element;
+    }
+
+    private static SheetViews GetOrCreateSheetViews(Worksheet worksheet)
+    {
+        var sheetViews = worksheet.GetFirstChild<SheetViews>();
+        if (sheetViews != null)
+            return sheetViews;
+
+        sheetViews = new SheetViews();
+        var successor = worksheet.Elements()
+            .FirstOrDefault(existing =>
+                existing is SheetFormatProperties
+                || existing is Columns
+                || existing is DocumentFormat.OpenXml.Spreadsheet.SheetData
+                || existing is SheetCalculationProperties
+                || existing is SheetProtection
+                || existing is ProtectedRanges
+                || existing is Scenarios
+                || existing is AutoFilter
+                || existing is SortState
+                || existing is DataConsolidate
+                || existing is CustomSheetViews
+                || existing is MergeCells);
+
+        if (successor != null)
+            worksheet.InsertBefore(sheetViews, successor);
+        else
+            worksheet.PrependChild(sheetViews);
+
+        return sheetViews;
+    }
 
     private WorksheetPart GetWorksheetPart(WorkbookPart workbookPart, string sheetName)
     {
@@ -1498,6 +1724,10 @@ internal class SheetData_Read
     public int ConditionalFormatCount { get; set; }
     public int PivotTableCount { get; set; }
     public bool Protected { get; set; }
+    public int MergedCellCount { get; set; }
+    public List<string> MergedRanges { get; set; } = new();
+    public string? FreezePaneCell { get; set; }
+    public string? AutoFilterRange { get; set; }
     public List<TableInfo> Tables { get; set; } = new();
     public List<DataValidationInfo> DataValidations { get; set; } = new();
     public List<ConditionalFormatInfo> ConditionalFormats { get; set; } = new();

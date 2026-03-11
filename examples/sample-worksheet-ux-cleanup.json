@@ -1,0 +1,18 @@
+{
+  "author": "Dr. Smith",
+  "changes": [
+    {
+      "type": "unmerge_cells",
+      "sheet": "Data",
+      "range": "B2:C2"
+    },
+    {
+      "type": "clear_freeze_panes",
+      "sheet": "Data"
+    },
+    {
+      "type": "clear_auto_filter",
+      "sheet": "Data"
+    }
+  ]
+}

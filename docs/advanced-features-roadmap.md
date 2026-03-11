@@ -68,6 +68,8 @@ Once the tool can edit workbook metadata, `--diff` needs to stop pretending thos
 
 ### Phase 3: Worksheet UX Features
 
+Status: in progress
+
 Deliverables:
 
 - merged cells

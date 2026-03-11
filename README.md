@@ -74,6 +74,9 @@ xlsx-review --create --template team-template.xlsx -o workbook.xlsx create.json
 # Apply advanced workbook metadata edits
 xlsx-review input.xlsx examples/sample-advanced-edits.json -o advanced.xlsx
 
+# Apply worksheet UX edits
+xlsx-review input.xlsx examples/sample-worksheet-ux-edits.json -o ux.xlsx
+
 # Read spreadsheet (human-readable)
 xlsx-review input.xlsx --read
 
@@ -131,6 +134,12 @@ that there is no input workbook when you pass `--create`.
 | `delete_defined_name` | `name` | Delete a workbook-scoped or sheet-scoped defined name (`scope_sheet` optional) |
 | `set_workbook_protection` | `enabled` or lock flags | Enable/disable workbook structure protection |
 | `set_sheet_protection` | `sheet`, `enabled` | Enable or disable worksheet protection |
+| `merge_cells` | `sheet`, `range` | Merge a cell range such as `B2:C2` |
+| `unmerge_cells` | `sheet`, `range` | Remove a merged cell range |
+| `set_freeze_panes` | `sheet`, `cell` | Freeze panes using the top-left scrollable cell (for example `B2`) |
+| `clear_freeze_panes` | `sheet` | Remove frozen pane state from a worksheet |
+| `set_auto_filter` | `sheet`, `range` | Apply an auto-filter range such as `A1:D6` |
+| `clear_auto_filter` | `sheet` | Remove worksheet auto-filter state |
 
 ## Create Mode
 
@@ -157,7 +166,15 @@ The current advanced edit tranche covers:
 - workbook protection
 - sheet protection
 
-See [docs/advanced-features-roadmap.md](/Users/ernie/Documents/irl_projects/xlsx-review/docs/advanced-features-roadmap.md) for the phased plan covering richer worksheet UX features, tables, validations, conditional formats, richer formula handling, charts, pivots, and connected-workbook features.
+## Worksheet UX Features
+
+The current worksheet UX tranche covers:
+
+- merged cells
+- freeze panes
+- auto-filter state
+
+See [docs/advanced-features-roadmap.md](/Users/ernie/Documents/irl_projects/xlsx-review/docs/advanced-features-roadmap.md) for the phased plan covering the rest of worksheet UX, tables, validations, conditional formats, richer formula handling, charts, pivots, and connected-workbook features.
 
 ### Comment Format
 
@@ -246,6 +263,7 @@ make smoke        # Run bundled read/diff/edit/create/advanced smoke tests
 make test         # Run test (requires TEST_DOC=path/to/spreadsheet.xlsx)
 make test-create  # Run blank/template create smoke tests
 make test-advanced  # Run advanced workbook metadata smoke test
+make test-worksheet-ux  # Run worksheet UX smoke test
 make corpus-download  # Download the public XLSX regression corpus
 make corpus-smoke     # Run published-binary corpus smoke checks
 make corpus-feature-smoke  # Assert workbook/sheet metadata on representative files

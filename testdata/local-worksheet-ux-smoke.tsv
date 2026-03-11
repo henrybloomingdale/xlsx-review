@@ -1,0 +1,11 @@
+# path	field	expected
+ux-output.xlsx	sheet:Data.merged_cell_count	=1
+ux-output.xlsx	sheet:Data.merged_ranges.0	=B2:C2
+ux-output.xlsx	sheet:Data.freeze_pane_cell	=B2
+ux-output.xlsx	sheet:Data.auto_filter_range	=A1:D6
+ux-created.xlsx	sheet:Data.merged_cell_count	=1
+ux-created.xlsx	sheet:Data.freeze_pane_cell	=B2
+ux-created.xlsx	sheet:Data.auto_filter_range	=A1:D6
+ux-reset.xlsx	sheet:Data.merged_cell_count	=0
+ux-reset.xlsx	sheet:Data.freeze_pane_cell	=null
+ux-reset.xlsx	sheet:Data.auto_filter_range	=null

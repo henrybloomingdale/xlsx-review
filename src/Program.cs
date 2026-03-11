@@ -308,6 +308,7 @@ class Program
                         $"comments={sheet.CommentCount}, threadedComments={sheet.ThreadedCommentCount}, " +
                         $"tables={sheet.TableCount}, validations={sheet.DataValidationCount}, " +
                         $"conditionalFormats={sheet.ConditionalFormatCount}, pivots={sheet.PivotTableCount}, " +
+                        $"mergedCells={sheet.MergedCellCount}, freezePane={sheet.FreezePaneCell ?? "none"}, autoFilter={sheet.AutoFilterRange ?? "none"}, " +
                         $"protected={(sheet.Protected ? "yes" : "no")}");
                     Console.WriteLine(new string('─', 50));
                     foreach (var row in sheet.Rows)
@@ -445,7 +446,10 @@ JSON Manifest Format:
       { ""type"": ""set_sheet_visibility"", ""name"": ""Summary"", ""visibility"": ""hidden"" },
       { ""type"": ""set_defined_name"", ""name"": ""ScoreRange"", ""refers_to"": ""Data!$C$2:$C$6"" },
       { ""type"": ""set_workbook_protection"", ""enabled"": true, ""lock_structure"": true },
-      { ""type"": ""set_sheet_protection"", ""sheet"": ""Data"", ""enabled"": true }
+      { ""type"": ""set_sheet_protection"", ""sheet"": ""Data"", ""enabled"": true },
+      { ""type"": ""merge_cells"", ""sheet"": ""Data"", ""range"": ""B2:C2"" },
+      { ""type"": ""set_freeze_panes"", ""sheet"": ""Data"", ""cell"": ""B2"" },
+      { ""type"": ""set_auto_filter"", ""sheet"": ""Data"", ""range"": ""A1:D6"" }
     ],
     ""comments"": [
       { ""sheet"": ""Sheet1"", ""cell"": ""A1"", ""text"": ""Review note"" }

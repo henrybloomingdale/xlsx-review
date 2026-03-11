@@ -80,6 +80,8 @@ def parse_expected(raw: str):
 def coerce_scalar(raw: str):
     text = raw.strip()
     lowered = text.lower()
+    if lowered == "null":
+        return None
     if lowered == "true":
         return True
     if lowered == "false":

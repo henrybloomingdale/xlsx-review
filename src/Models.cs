@@ -67,6 +67,9 @@ public class Change
     [JsonPropertyName("column")]
     public string? Column { get; set; }
 
+    [JsonPropertyName("range")]
+    public string? Range { get; set; }
+
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
@@ -373,6 +376,18 @@ public class SheetData
 
     [JsonPropertyName("protected")]
     public bool Protected { get; set; }
+
+    [JsonPropertyName("merged_cell_count")]
+    public int MergedCellCount { get; set; }
+
+    [JsonPropertyName("merged_ranges")]
+    public List<string> MergedRanges { get; set; } = new();
+
+    [JsonPropertyName("freeze_pane_cell")]
+    public string? FreezePaneCell { get; set; }
+
+    [JsonPropertyName("auto_filter_range")]
+    public string? AutoFilterRange { get; set; }
 
     [JsonPropertyName("tables")]
     public List<TableInfo> Tables { get; set; } = new();
