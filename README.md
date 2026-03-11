@@ -144,7 +144,7 @@ that there is no input workbook when you pass `--create`.
 | `add_sheet` | `name` | Add a new worksheet |
 | `rename_sheet` | `from`, `to` | Rename a worksheet |
 | `delete_sheet` | `name` | Delete a worksheet |
-| `set_table` | `sheet`, `range`, `name` | Add or replace an Excel table on a sheet. Optional fields: `display_name`, `style_name`, `header_row_count` (currently only `1`), `totals_row_shown`. |
+| `set_table` | `sheet`, `range`, `name` | Add or replace an Excel table on a sheet. Optional fields: `display_name`, `style_name`, `header_row_count` (currently only `1`). `totals_row_shown` is reserved but not supported yet. |
 | `delete_table` | `name` | Delete an Excel table by table name |
 | `set_sheet_visibility` | `name` or `sheet`, `visibility` | Set worksheet visibility to `visible`, `hidden`, or `veryHidden` |
 | `set_defined_name` | `name`, `refers_to` | Add or update a workbook-scoped or sheet-scoped defined name (`scope_sheet` optional) |
