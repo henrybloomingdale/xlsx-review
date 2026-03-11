@@ -455,7 +455,7 @@ JSON Manifest Format:
       { ""type"": ""set_print_area"", ""sheet"": ""Data"", ""range"": ""$A$1:$D$6"" },
       { ""type"": ""set_page_orientation"", ""sheet"": ""Data"", ""orientation"": ""landscape"" },
       { ""type"": ""set_data_validation"", ""sheet"": ""Data"", ""range"": ""D2:D6"", ""validation_type"": ""list"", ""formula1"": ""\""Control,Treatment\"""" },
-      { ""type"": ""set_conditional_format"", ""sheet"": ""Data"", ""range"": ""D2:D6"", ""conditional_type"": ""cellIs"", ""conditional_operator"": ""greaterThan"", ""formula1"": ""50"" }
+      { ""type"": ""set_conditional_format"", ""sheet"": ""Data"", ""range"": ""D2:D6"", ""conditional_type"": ""cellIs"", ""conditional_operator"": ""greaterThan"", ""formula1"": ""50"", ""fill_color"": ""#FDE9D9"" }
     ],
     ""comments"": [
       { ""sheet"": ""Sheet1"", ""cell"": ""A1"", ""text"": ""Review note"" }

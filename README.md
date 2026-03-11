@@ -160,7 +160,7 @@ that there is no input workbook when you pass `--create`.
 | `clear_page_orientation` | `sheet` | Clear explicit page orientation |
 | `set_data_validation` | `sheet`, `range`, `validation_type`, `formula1` | Add or replace a worksheet data validation rule. Optional fields: `validation_operator`, `formula2`, `allow_blank`, `show_input_message`, `show_error_message`. |
 | `clear_data_validation` | `sheet`, `range` | Remove a worksheet data validation rule that exactly matches the target range |
-| `set_conditional_format` | `sheet`, `range`, `conditional_type`, `formula1` | Add or replace a worksheet conditional format using `expression` or `cellIs`. Optional fields: `conditional_operator`, `formula2`, `priority`, `fill_color`, `stop_if_true`. |
+| `set_conditional_format` | `sheet`, `range`, `conditional_type`, `formula1` | Add or replace a worksheet conditional format using `expression` or `cellIs`. Optional fields: `conditional_operator`, `formula2`, `priority`, `fill_color` (defaults to yellow), `stop_if_true`. |
 | `clear_conditional_format` | `sheet`, `range` | Remove worksheet conditional formatting entries that exactly match the target range |
 
 ## Create Mode
