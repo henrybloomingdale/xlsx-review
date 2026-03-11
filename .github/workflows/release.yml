@@ -26,6 +26,7 @@ jobs:
   build:
     needs: validate
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-14
@@ -37,7 +38,7 @@ jobs:
           - os: ubuntu-24.04
             rid: linux-x64
             artifact: xlsx-review-linux-amd64
-          - os: ubuntu-24.04
+          - os: ubuntu-24.04-arm
             rid: linux-arm64
             artifact: xlsx-review-linux-arm64
 
